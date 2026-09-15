@@ -1,0 +1,148 @@
+{
+  "schemaVersion": 1,
+  "workflowVersion": 1,
+  "workflowId": "wf_morning_setup",
+  "name": "Morning browser setup",
+  "description": "Open core tools, load the dashboard, and verify the page is ready.",
+  "enabled": true,
+  "trigger": {
+    "type": "manual"
+  },
+  "defaultAuthProfileId": "profile_work",
+  "createdAt": "2026-03-09T12:00:00.000Z",
+  "updatedAt": "2026-03-09T12:00:00.000Z",
+  "tags": ["sample", "morning"],
+  "metadata": {
+    "owner": "local-user"
+  },
+  "steps": [
+    {
+      "id": "step_new_tab",
+      "type": "newTab",
+      "initialUrl": "https://app.example.com/dashboard",
+      "timeoutMs": 10000,
+      "retryPolicy": {
+        "maxAttempts": 1,
+        "backoffMs": 0,
+        "strategy": "fixed"
+      },
+      "debug": {
+        "sourceEventIds": [],
+        "notes": ["Create a fresh tab for the daily dashboard."],
+        "tags": [],
+        "extra": {}
+      }
+    },
+    {
+      "id": "step_goto_dashboard",
+      "type": "goto",
+      "url": "https://app.example.com/dashboard",
+      "waitUntil": "load",
+      "timeoutMs": 30000,
+      "retryPolicy": {
+        "maxAttempts": 1,
+        "backoffMs": 0,
+        "strategy": "fixed"
+      },
+      "debug": {
+        "sourceEventIds": [],
+        "notes": ["Prefer direct navigation over replaying intermediary search steps."],
+        "tags": [],
+        "extra": {}
+      }
+    },
+    {
+      "id": "step_open_filters",
+      "type": "click",
+      "primaryLocator": {
+        "kind": "role",
+        "role": "button",
+        "name": "Filters"
+      },
+      "fallbackLocators": [
+        {
+          "kind": "text",
+          "text": "Filters",
+          "exact": true
+        },
+        {
+          "kind": "css",
+          "selector": "[data-testid='filters-button']"
+        }
+      ],
+      "timeoutMs": 20000,
+      "retryPolicy": {
+        "maxAttempts": 2,
+        "backoffMs": 250,
+        "strategy": "fixed"
+      },
+      "debug": {
+        "sourceEventIds": [],
+        "notes": ["Menu opens the morning filter panel."],
+        "tags": [],
+        "confidence": 0.94,
+        "extra": {}
+      },
+      "button": "left",
+      "clickCount": 1
+    },
+    {
+      "id": "step_wait_dashboard_ready",
+      "type": "waitFor",
+      "primaryLocator": {
+        "kind": "testId",
+        "testId": "dashboard-ready"
+      },
+      "fallbackLocators": [
+        {
+          "kind": "css",
+          "selector": "[data-state='ready']"
+        }
+      ],
+      "timeoutMs": 30000,
+      "retryPolicy": {
+        "maxAttempts": 2,
+        "backoffMs": 500,
+        "strategy": "fixed"
+      },
+      "debug": {
+        "sourceEventIds": [],
+        "notes": ["Wait until the dashboard reports a ready state."],
+        "tags": [],
+        "extra": {}
+      },
+      "condition": "visible"
+    },
+    {
+      "id": "step_assert_header",
+      "type": "assert",
+      "primaryLocator": {
+        "kind": "role",
+        "role": "heading",
+        "name": "Operations Dashboard"
+      },
+      "fallbackLocators": [
+        {
+          "kind": "text",
+          "text": "Operations Dashboard",
+          "exact": true
+        }
+      ],
+      "timeoutMs": 15000,
+      "retryPolicy": {
+        "maxAttempts": 1,
+        "backoffMs": 0,
+        "strategy": "fixed"
+      },
+      "debug": {
+        "sourceEventIds": [],
+        "notes": ["Final guard that the expected dashboard is visible."],
+        "tags": [],
+        "extra": {}
+      },
+      "assertion": {
+        "kind": "visible"
+      }
+    }
+  ]
+}
