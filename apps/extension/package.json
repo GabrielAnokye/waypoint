@@ -1,0 +1,21 @@
+{
+  "name": "@waypoint/extension",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "corepack pnpm run build && cross-env VITE_WATCH=true vite build --watch",
+    "build": "vite build && node ./scripts/write-manifest.mjs",
+    "typecheck": "tsc -b --pretty false && tsc -b tsconfig.scripts.json --pretty false",
+    "test": "vitest run --root ../.. apps/extension/src",
+    "clean": "rimraf dist dist-types"
+  },
+  "dependencies": {
+    "@waypoint/shared-types": "workspace:*",
+    "@waypoint/ui": "workspace:*",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "zod": "^3.23.8",
+    "zustand": "^5.0.2"
+  }
+}

@@ -24,6 +24,9 @@
     },
     {
       "path": "./apps/bridge-host"
+    },
+    {
+      "path": "./apps/extension"
     }
   ]
 }
