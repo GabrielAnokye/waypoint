@@ -1,0 +1,7 @@
+{
+  "name": "com.waypoint.bridge",
+  "description": "Waypoint local runner bridge",
+  "path": "<ABSOLUTE_PATH_TO_HOST_LAUNCHER>",
+  "type": "stdio",
+  "allowed_origins": ["chrome-extension://<EXTENSION_ID>/"]
+}

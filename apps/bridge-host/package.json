@@ -1,0 +1,21 @@
+{
+  "name": "@waypoint/bridge-host",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -b",
+    "start": "node dist/index.js",
+    "typecheck": "tsc -b --pretty false",
+    "test": "vitest run --root ../.. apps/bridge-host/src",
+    "clean": "rimraf dist",
+    "install:bridge": "node install/install.mjs",
+    "uninstall:bridge": "node install/uninstall.mjs",
+    "diagnose:bridge": "node dist/cli.js --diagnose"
+  },
+  "dependencies": {
+    "@waypoint/bridge-protocol": "workspace:*",
+    "@waypoint/shared-types": "workspace:*",
+    "zod": "^3.23.8"
+  }
+}

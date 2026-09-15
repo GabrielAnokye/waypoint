@@ -21,6 +21,9 @@
     },
     {
       "path": "./apps/runner"
+    },
+    {
+      "path": "./apps/bridge-host"
     }
   ]
 }

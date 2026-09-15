@@ -69,6 +69,18 @@ importers:
         specifier: ^2.1.8
         version: 2.1.9(@types/node@22.20.2)
 
+  apps/bridge-host:
+    dependencies:
+      '@waypoint/bridge-protocol':
+        specifier: workspace:*
+        version: link:../../packages/bridge-protocol
+      '@waypoint/shared-types':
+        specifier: workspace:*
+        version: link:../../packages/shared-types
+      zod:
+        specifier: ^3.23.8
+        version: 3.25.76
+
   apps/runner:
     dependencies:
       '@waypoint/compiler':
