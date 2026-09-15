@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Recorder Demo</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 480px; margin: 40px auto; }
+    label { display: block; margin: 12px 0 4px; font-weight: 600; }
+    input, select { width: 100%; padding: 8px; box-sizing: border-box; }
+    button { margin-top: 16px; padding: 10px 20px; cursor: pointer; }
+    a { display: inline-block; margin-top: 16px; }
+    .status { margin-top: 16px; color: #087443; }
+  </style>
+</head>
+<body>
+  <h1>Waypoint Recorder Demo</h1>
+
+  <form id="login" onsubmit="handleSubmit(event)">
+    <label for="username">Username</label>
+    <input id="username" name="username" type="text" placeholder="Enter username" data-testid="username-input" />
+
+    <label for="password">Password</label>
+    <input id="password" name="password" type="password" placeholder="Enter password" autocomplete="current-password" />
+
+    <label for="country">Country</label>
+    <select id="country" name="country">
+      <option value="">-- Select --</option>
+      <option value="gh">Ghana</option>
+      <option value="us">United States</option>
+      <option value="uk">United Kingdom</option>
+    </select>
+
+    <button type="submit" id="submit-btn">Sign in</button>
+  </form>
+
+  <a href="#/dashboard" id="dashboard-link" onclick="navigateSPA(event)">Go to Dashboard</a>
+
+  <button id="open-popup" onclick="window.open('popup.html', '_blank', 'width=400,height=300')">
+    Open popup
+  </button>
+
+  <a href="iframe-host.html" id="iframe-link">Iframe test page</a>
+
+  <div id="status" class="status"></div>
+
+  <script>
+    function handleSubmit(e) {
+      e.preventDefault();
+      document.getElementById('status').textContent = 'Form submitted!';
+    }
+
+    function navigateSPA(e) {
+      e.preventDefault();
+      history.pushState({}, '', '#/dashboard');
+      document.body.innerHTML = '<h1 data-testid="dashboard-ready">Dashboard</h1><p>SPA navigation complete.</p>';
+    }
+  </script>
+</body>
+</html>
