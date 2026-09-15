@@ -86,13 +86,17 @@ export function createHttpHandlers(
 
     async saveWorkflow(payload) {
       const { recording, name } = payload as {
-        recording: unknown;
+        recording: Record<string, unknown>;
         name?: string;
       };
+      // An explicit name overrides the one captured on the recording.
+      // The runner compiles the posted recording as-is, so the override has
+      // to be merged in here or it is silently discarded.
+      const body = name ? { ...recording, name } : recording;
       const r = await fetchRunner(`${url}/recordings`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(recording)
+        body: JSON.stringify(body)
       });
       if (!r.ok) throw new Error(`Save failed: ${JSON.stringify(r.body)}`);
       return r.body;
@@ -103,7 +107,7 @@ export function createHttpHandlers(
       return r.body;
     },
 
-    async createAuthProfile(payload) {
+    async createAuthProfile(_payload) {
       // Stub — auth profile creation is out of scope for this phase.
       return { authProfileId: 'stub_profile' };
     },

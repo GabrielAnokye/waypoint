@@ -12,7 +12,7 @@ interface UndoRedoState<T> {
   future: T[];
 }
 
-function createUndoRedo<T>(initial: T, maxHistory = 50): UndoRedoState<T> {
+function createUndoRedo<T>(initial: T, _maxHistory = 50): UndoRedoState<T> {
   return { current: initial, past: [], future: [] };
 }
 

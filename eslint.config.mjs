@@ -27,6 +27,16 @@ export default tseslint.config(
       '@typescript-eslint/consistent-type-imports': [
         'error',
         { prefer: 'type-imports', fixStyle: 'inline-type-imports' }
+      ],
+      // A leading underscore marks a binding that is deliberately unused:
+      // a required-by-signature parameter, or a key discarded by rest-omit.
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_'
+        }
       ]
     }
   },
@@ -53,9 +63,11 @@ export default tseslint.config(
   {
     files: [
       'apps/runner/**/*.{ts,tsx}',
+      'apps/bridge-host/**/*.{ts,tsx}',
       'packages/**/*.{ts,tsx}',
       'tests/**/*.{ts,tsx}',
-      'apps/extension/scripts/**/*.mjs',
+      'apps/**/scripts/**/*.mjs',
+      'apps/**/install/**/*.mjs',
       '**/*.config.{js,mjs,ts}',
       '*.config.{js,mjs,ts}'
     ],

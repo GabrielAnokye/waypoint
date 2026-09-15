@@ -212,7 +212,7 @@ export function isResolveFailure(
 /**
  * Classify a step execution error into a structured failure code.
  */
-export function classifyError(error: unknown, step: WorkflowStep): FailureCode {
+export function classifyError(error: unknown, _step: WorkflowStep): FailureCode {
   const msg = error instanceof Error ? error.message : String(error);
   const lower = msg.toLowerCase();
 

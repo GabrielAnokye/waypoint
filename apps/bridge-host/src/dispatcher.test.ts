@@ -40,7 +40,7 @@ describe('Dispatcher', () => {
   it('returns timeout when deadline is exceeded', async () => {
     const d = new Dispatcher({
       handlers: {
-        async ping(_payload, signal) {
+        async ping(_payload, _signal) {
           // Simulate slow work.
           await new Promise((resolve) => setTimeout(resolve, 5_000));
           return { pong: true };

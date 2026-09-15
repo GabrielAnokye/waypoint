@@ -59,7 +59,6 @@ export function computeNextRunMs(
   // Convert `after` to the schedule's local date components.
   const offsetMs = getTimezoneOffsetMs(schedule.timezone, after);
   const localAfterMs = after.getTime() + offsetMs;
-  const localAfter = new Date(localAfterMs);
 
   for (let dayOffset = 0; dayOffset <= 8; dayOffset++) {
     const candidateLocal = new Date(localAfterMs + dayOffset * 86_400_000);
