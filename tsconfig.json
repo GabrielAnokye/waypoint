@@ -27,6 +27,9 @@
     },
     {
       "path": "./apps/extension"
+    },
+    {
+      "path": "./apps/extension/tsconfig.scripts.json"
     }
   ]
 }

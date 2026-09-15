@@ -1,0 +1,15 @@
+{
+  "extends": "../../tsconfig.web.json",
+  "compilerOptions": {
+    "composite": true,
+    "rootDir": "src",
+    "outDir": "dist/scripts",
+    "declaration": true,
+    "types": ["chrome"],
+    "tsBuildInfoFile": "dist/scripts/.tsbuildinfo"
+  },
+  "include": ["src/content-script.ts", "src/service-worker.ts", "src/scheduler.ts"],
+  "references": [
+    { "path": "../../packages/shared-types" }
+  ]
+}
