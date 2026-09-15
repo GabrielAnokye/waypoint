@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "target": "ES2022",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "useDefineForClassFields": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "paths": {
+      "@waypoint/shared-types": ["packages/shared-types/src/index.ts"],
+      "@waypoint/compiler": ["packages/compiler/src/index.ts"],
+      "@waypoint/db": ["packages/db/src/index.ts"],
+      "@waypoint/db/runtime-paths": ["packages/db/src/runtime-paths.ts"],
+      "@waypoint/logger": ["packages/logger/src/index.ts"],
+      "@waypoint/ui": ["packages/ui/src/index.tsx"]
+    }
+  }
+}

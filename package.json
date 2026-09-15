@@ -1,0 +1,42 @@
+{
+  "name": "waypoint",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@9.0.0",
+  "engines": {
+    "node": ">=22.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "scripts": {
+    "dev": "corepack pnpm build:packages && concurrently -n extension,runner -c blue,green \"corepack pnpm --filter @waypoint/extension dev\" \"corepack pnpm --filter @waypoint/runner dev\"",
+    "build": "corepack pnpm -r build",
+    "build:packages": "corepack pnpm -r --filter \"./packages/*\" build",
+    "test": "vitest run",
+    "test:e2e": "corepack pnpm build && playwright test",
+    "lint": "eslint .",
+    "typecheck": "tsc -b --pretty false",
+    "clean": "corepack pnpm -r clean && rimraf coverage playwright-report test-results"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.18.0",
+    "@playwright/test": "^1.49.1",
+    "@types/chrome": "^0.0.286",
+    "@types/node": "^22.10.2",
+    "@types/react": "^18.2.79",
+    "@types/react-dom": "^18.2.25",
+    "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^9.1.2",
+    "cross-env": "^7.0.3",
+    "eslint": "^9.18.0",
+    "eslint-plugin-react-hooks": "^5.1.0",
+    "eslint-plugin-react-refresh": "^0.4.16",
+    "globals": "^15.14.0",
+    "prettier": "^3.4.2",
+    "rimraf": "^6.0.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.19.1",
+    "vite": "^5.4.11",
+    "vitest": "^2.1.8"
+  }
+}
