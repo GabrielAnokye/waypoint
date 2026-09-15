@@ -12,6 +12,9 @@
     },
     {
       "path": "./packages/compiler"
+    },
+    {
+      "path": "./packages/bridge-protocol"
     }
   ]
 }
