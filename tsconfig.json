@@ -6,6 +6,9 @@
     },
     {
       "path": "./packages/logger"
+    },
+    {
+      "path": "./packages/db"
     }
   ]
 }
