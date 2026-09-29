@@ -79,6 +79,44 @@ describe('WaypointRepository', () => {
     database.close();
   });
 
+  it('round-trips resolvedLocator and usedFallback on step results', () => {
+    const database = openWaypointDatabase(':memory:');
+    const seedBundle = createDevelopmentSeedBundle();
+
+    database.repository.upsertAuthProfile(seedBundle.authProfile);
+    database.repository.saveWorkflowVersion(seedBundle.workflowVersion);
+    database.repository.upsertSchedule(seedBundle.schedule);
+
+    // The study's per-step observation: a fallback resolved, not the primary.
+    const steps = seedBundle.runGraph.steps.map((step, index) =>
+      index === 0
+        ? {
+            ...step,
+            resolvedLocator: {
+              kind: 'testId' as const,
+              testId: 'submit-login'
+            },
+            usedFallback: true
+          }
+        : { ...step, usedFallback: false }
+    );
+    database.repository.saveRunGraph({ ...seedBundle.runGraph, steps });
+
+    const runGraph = database.repository.getRunGraph(seedBundle.runGraph.run.id);
+    const first = runGraph?.steps.find((s) => s.stepId === steps[0]!.stepId);
+    const second = runGraph?.steps.find((s) => s.stepId === steps[1]?.stepId);
+
+    expect(first?.usedFallback).toBe(true);
+    expect(first?.resolvedLocator).toEqual({
+      kind: 'testId',
+      testId: 'submit-login'
+    });
+    // false must survive as false, not collapse to undefined via 0/NULL confusion.
+    if (second) expect(second.usedFallback).toBe(false);
+
+    database.close();
+  });
+
   it('rolls back transaction-scoped writes when an error occurs', () => {
     const database = openWaypointDatabase(':memory:');
     const seedBundle = createDevelopmentSeedBundle();

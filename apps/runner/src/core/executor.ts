@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import type {
   FailureCode,
+  Locator,
   RepairRecord,
   RunEvent,
   Workflow,
@@ -18,12 +19,28 @@ export interface ExecuteStepContext {
 }
 
 /**
+ * What the launcher reports back about a step it executed.
+ *
+ * `resolvedLocator` is the locator that actually matched, which is not
+ * necessarily the step's primary one. Together with `usedFallback` this is the
+ * raw observation the locator-robustness study aggregates: for a given page
+ * mutation, which strategy still found the element.
+ */
+export interface StepExecutionResult {
+  resolvedLocator?: Locator;
+  usedFallback?: boolean;
+}
+
+/**
  * Pluggable browser engine. Tests inject a stub; production wires this to a
- * real Playwright launcher in a follow-up. Returning normally = success.
+ * real Playwright launcher. Returning normally = success.
  * Throwing = step failure (retried per the step's retry policy).
  */
 export interface BrowserLauncher {
-  executeStep(step: WorkflowStep, ctx: ExecuteStepContext): Promise<void>;
+  executeStep(
+    step: WorkflowStep,
+    ctx: ExecuteStepContext
+  ): Promise<StepExecutionResult | void>;
   dispose?(): Promise<void>;
 }
 
@@ -107,7 +124,7 @@ export async function* executeWorkflow(
       };
 
       try {
-        await launcher.executeStep(step, {
+        const result = await launcher.executeStep(step, {
           runId,
           stepIndex: i,
           attempt,
@@ -120,7 +137,15 @@ export async function* executeWorkflow(
           stepId: step.id,
           stepIndex: i,
           finishedAt,
-          durationMs: Date.now() - stepStartMs
+          durationMs: Date.now() - stepStartMs,
+          // Carry the winning locator out so it reaches persistence. Omitted
+          // rather than set to undefined so schema parsing stays strict.
+          ...(result?.resolvedLocator
+            ? { resolvedLocator: result.resolvedLocator }
+            : {}),
+          ...(result?.usedFallback !== undefined
+            ? { usedFallback: result.usedFallback }
+            : {})
         };
         succeeded = true;
         break;

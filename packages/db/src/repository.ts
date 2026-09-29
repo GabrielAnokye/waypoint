@@ -161,6 +161,11 @@ function mapRunStepRow(row: SqliteRow): RunStepResult {
             RunStepResultSchema.shape.resolvedLocator,
             row.resolved_locator_json as string
           ),
+    // SQLite has no boolean type; the column stores 0/1 or NULL.
+    usedFallback:
+      row.used_fallback === null || row.used_fallback === undefined
+        ? undefined
+        : asNumber(row.used_fallback) === 1,
     errorCode: asOptionalString(row.error_code),
     errorMessage: asOptionalString(row.error_message),
     artifactIds: parseJsonColumn(
@@ -590,6 +595,7 @@ export class WaypointRepository {
           finished_at,
           duration_ms,
           resolved_locator_json,
+          used_fallback,
           error_code,
           error_message,
           artifact_ids_json,
@@ -605,6 +611,7 @@ export class WaypointRepository {
           :finishedAt,
           :durationMs,
           :resolvedLocatorJson,
+          :usedFallback,
           :errorCode,
           :errorMessage,
           :artifactIdsJson,
@@ -627,6 +634,8 @@ export class WaypointRepository {
           resolvedLocatorJson: step.resolvedLocator
             ? serializeJson(step.resolvedLocator)
             : null,
+          usedFallback:
+            step.usedFallback === undefined ? null : step.usedFallback ? 1 : 0,
           errorCode: step.errorCode ?? null,
           errorMessage: step.errorMessage ?? null,
           artifactIdsJson: serializeJson(step.artifactIds),

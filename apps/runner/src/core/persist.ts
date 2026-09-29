@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import type {
+  Locator,
   RunEvent,
   RunGraph,
   Workflow
@@ -15,6 +16,8 @@ interface StepAccumulator {
   startedAt: string;
   finishedAt?: string;
   durationMs?: number;
+  resolvedLocator?: Locator;
+  usedFallback?: boolean;
   errorCode?: string;
   errorMessage?: string;
 }
@@ -73,6 +76,8 @@ export async function buildRunGraph(
           acc.status = 'succeeded';
           acc.finishedAt = event.finishedAt;
           acc.durationMs = event.durationMs;
+          if (event.resolvedLocator) acc.resolvedLocator = event.resolvedLocator;
+          if (event.usedFallback !== undefined) acc.usedFallback = event.usedFallback;
         }
         break;
       }
@@ -131,6 +136,8 @@ export async function buildRunGraph(
       startedAt: acc.startedAt,
       finishedAt: acc.finishedAt,
       durationMs: acc.durationMs,
+      resolvedLocator: acc.resolvedLocator,
+      usedFallback: acc.usedFallback,
       errorCode: acc.errorCode,
       errorMessage: acc.errorMessage,
       artifactIds: [],

@@ -525,6 +525,8 @@ export const RunStepResultSchema = z.object({
   finishedAt: IsoDateTimeSchema.optional(),
   durationMs: z.number().int().nonnegative().optional(),
   resolvedLocator: LocatorSchema.optional(),
+  /** True when the primary locator missed and a fallback resolved instead. */
+  usedFallback: z.boolean().optional(),
   errorCode: z.string().min(1).optional(),
   errorMessage: z.string().min(1).optional(),
   artifactIds: z.array(EntityIdSchema).default([]),
@@ -682,7 +684,8 @@ export const RunEventSchema = z.discriminatedUnion('kind', [
     stepIndex: z.number().int().nonnegative(),
     finishedAt: IsoDateTimeSchema,
     durationMs: z.number().int().nonnegative(),
-    resolvedLocator: LocatorSchema.optional()
+    resolvedLocator: LocatorSchema.optional(),
+    usedFallback: z.boolean().optional()
   }),
   z.object({
     kind: z.literal('step.failed'),

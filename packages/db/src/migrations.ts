@@ -147,6 +147,15 @@ ALTER TABLE schedules ADD COLUMN last_run_status TEXT;
 UPDATE schedules SET pattern_json = '{"kind":"' || type || '"}' WHERE type IS NOT NULL;
 `;
 
+/**
+ * Records whether a step resolved via a fallback rather than its primary
+ * locator. This is the per-step observation the locator-robustness study
+ * aggregates, so it has to survive in storage and not just in the event stream.
+ */
+export const RUN_STEPS_USED_FALLBACK_SQL = `
+ALTER TABLE run_steps ADD COLUMN used_fallback INTEGER;
+`;
+
 /** Ordered migration list applied to every opened database. */
 export const MIGRATIONS: Migration[] = [
   {
@@ -158,5 +167,10 @@ export const MIGRATIONS: Migration[] = [
     id: 2,
     name: '002_schedules_v2',
     sql: SCHEDULES_V2_SQL
+  },
+  {
+    id: 3,
+    name: '003_run_steps_used_fallback',
+    sql: RUN_STEPS_USED_FALLBACK_SQL
   }
 ];
