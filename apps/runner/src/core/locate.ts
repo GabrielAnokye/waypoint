@@ -80,8 +80,13 @@ function toPlaywrightLocator(page: LocatablePage, loc: Locator): LocatableHandle
     case 'xpath':
       return page.locator(`xpath=${loc.selector}`);
     case 'coordinates':
-      // Coordinates are a last resort — we create a locator at that point
-      return page.locator(`html`);
+      // Coordinates are positional, not element-based. In the resolution
+      // loop, they must not match anything — the launcher handles them
+      // via page.mouse.click(x, y) instead. Return a selector that
+      // guarantees count() === 0 so the fallback chain continues past
+      // coordinate entries and the step correctly reports failure if no
+      // semantic fallback finds anything either.
+      return page.locator('[data-waypoint-coordinate-sentinel]');
   }
 }
 

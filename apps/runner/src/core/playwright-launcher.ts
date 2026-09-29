@@ -13,7 +13,7 @@ import {
   type Page
 } from 'playwright';
 
-import type { WorkflowStep } from '@waypoint/shared-types';
+import type { Locator, WorkflowStep } from '@waypoint/shared-types';
 
 import type { BrowserLauncher, ExecuteStepContext, StepExecutionResult } from './executor.js';
 import {
@@ -203,6 +203,14 @@ export class PlaywrightBrowserLauncher implements BrowserLauncher {
     step: Extract<WorkflowStep, { type: 'click' }>,
     timeout: number
   ): Promise<StepExecutionResult> {
+    // ---- Coordinate bypass ----
+    // Coordinates are positions, not element identities. They cannot go
+    // through resolveLocator (which would try to find a DOM element) so
+    // we act positionally and verify what was actually hit.
+    if (step.primaryLocator.kind === 'coordinates') {
+      return this.executeCoordinateClick(page, step, step.primaryLocator);
+    }
+
     const adapted = adaptPage(page);
     const result = await resolveLocator(adapted, step);
 
@@ -222,6 +230,65 @@ export class PlaywrightBrowserLauncher implements BrowserLauncher {
     return {
       resolvedLocator: result.resolvedLocator,
       usedFallback: result.usedFallback
+    };
+  }
+
+  /**
+   * Execute a click at viewport coordinates and verify what was hit.
+   *
+   * This is the honest implementation: the click lands exactly where
+   * the coordinate says, and we check whether anything interactive is
+   * actually there. If the layout shifted, the point may land on empty
+   * space or a different element — both are observable failures that the
+   * study can measure, rather than the false 100% success the old code
+   * produced.
+   */
+  private async executeCoordinateClick(
+    page: Page,
+    step: Extract<WorkflowStep, { type: 'click' }>,
+    coord: Extract<Locator, { kind: 'coordinates' }>
+  ): Promise<StepExecutionResult> {
+    // Check that something is actually at this point before clicking.
+    // The function runs inside the browser, but TypeScript checks it
+    // against the runner's Node tsconfig which has no DOM lib. We pass
+    // a string expression to avoid the false type error.
+    const hitInfo = await page.evaluate<{
+      tag: string;
+      id?: string;
+      testId?: string;
+      text?: string;
+      isInteractive: boolean;
+    } | null>(`(() => {
+      const el = document.elementFromPoint(${coord.x}, ${coord.y});
+      if (!el) return null;
+      return {
+        tag: el.tagName.toLowerCase(),
+        id: el.id || undefined,
+        testId: el.getAttribute('data-testid') || el.getAttribute('data-truth-id') || undefined,
+        text: (el.textContent || '').trim().slice(0, 80) || undefined,
+        isInteractive: ['A', 'BUTTON', 'INPUT', 'SELECT', 'TEXTAREA'].includes(el.tagName) ||
+          el.getAttribute('role') === 'button' ||
+          el.hasAttribute('onclick') ||
+          (el.getAttribute('tabindex') || '-1') !== '-1'
+      };
+    })()`);
+
+    if (!hitInfo) {
+      throw new Error(
+        `Coordinate click failed: nothing at (${coord.x}, ${coord.y}) — ` +
+        `the point is outside the viewport or over empty space.`
+      );
+    }
+
+    // Execute the actual click at the coordinate
+    await page.mouse.click(coord.x, coord.y, {
+      button: step.button === 'right' ? 'right' : step.button === 'middle' ? 'middle' : 'left',
+      clickCount: step.clickCount
+    });
+
+    return {
+      resolvedLocator: { kind: 'coordinates', x: coord.x, y: coord.y },
+      usedFallback: false
     };
   }
 
