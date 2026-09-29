@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Same-Origin Iframe Fixture</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 700px; margin: 40px auto; }
+    .frame-wrapper { border: 2px solid #0d5b86; border-radius: 8px; padding: 8px; margin: 16px 0; }
+    .frame-label { font-weight: 700; color: #0d5b86; margin-bottom: 4px; font-size: 12px; text-transform: uppercase; }
+    iframe { width: 100%; border: none; border-radius: 4px; background: #fafafa; }
+    button { padding: 8px 16px; cursor: pointer; margin: 4px; }
+    #host-status { margin-top: 8px; color: #087443; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <h1 data-testid="iframe-host-title" data-truth-id="iframe-host-title">Iframe Host Page</h1>
+  <p>This page contains same-origin iframes for testing frame-aware locator resolution.</p>
+
+  <button data-testid="host-button" data-truth-id="host-button" onclick="hostAction()">Host Page Button</button>
+  <div id="host-status" data-testid="host-status" data-truth-id="host-status"></div>
+
+  <div class="frame-wrapper">
+    <div class="frame-label">Iframe 1: Form</div>
+    <iframe id="frame-form" data-testid="frame-form" data-truth-id="frame-form" name="form-frame"
+            srcdoc='
+<!DOCTYPE html>
+<html><head><style>
+  body { font-family: system-ui, sans-serif; padding: 12px; margin: 0; }
+  label { display: block; margin: 8px 0 4px; font-weight: 600; }
+  input { width: 100%; padding: 6px; box-sizing: border-box; }
+  button { margin-top: 8px; padding: 6px 12px; cursor: pointer; }
+  #frame-result { margin-top: 8px; color: #087443; }
+</style></head>
+<body>
+  <h3 data-testid="iframe-form-title" data-truth-id="iframe-form-title">Embedded Form</h3>
+  <form onsubmit="event.preventDefault(); document.getElementById(&quot;frame-result&quot;).textContent = &quot;Submitted: &quot; + document.getElementById(&quot;iframe-name&quot;).value;">
+    <label for="iframe-name">Name</label>
+    <input id="iframe-name" data-testid="iframe-name-input" data-truth-id="iframe-name-input" placeholder="Enter name" />
+    <label for="iframe-email">Email</label>
+    <input id="iframe-email" data-testid="iframe-email-input" data-truth-id="iframe-email-input" type="email" placeholder="Enter email" />
+    <button type="submit" data-testid="iframe-submit" data-truth-id="iframe-submit">Submit</button>
+  </form>
+  <div id="frame-result" data-testid="iframe-result" data-truth-id="iframe-result"></div>
+</body></html>
+' height="250"></iframe>
+  </div>
+
+  <div class="frame-wrapper">
+    <div class="frame-label">Iframe 2: Actions</div>
+    <iframe id="frame-actions" data-testid="frame-actions" data-truth-id="frame-actions" name="actions-frame"
+            srcdoc='
+<!DOCTYPE html>
+<html><head><style>
+  body { font-family: system-ui, sans-serif; padding: 12px; margin: 0; }
+  button { padding: 6px 12px; cursor: pointer; margin: 4px; }
+  #action-log { margin-top: 8px; font-size: 13px; color: #446074; }
+</style></head>
+<body>
+  <h3 data-testid="iframe-actions-title" data-truth-id="iframe-actions-title">Action Buttons</h3>
+  <button data-testid="iframe-btn-approve" data-truth-id="iframe-btn-approve" onclick="log(&quot;Approved&quot;)">Approve</button>
+  <button data-testid="iframe-btn-reject" data-truth-id="iframe-btn-reject" onclick="log(&quot;Rejected&quot;)">Reject</button>
+  <button data-testid="iframe-btn-escalate" data-truth-id="iframe-btn-escalate" onclick="log(&quot;Escalated&quot;)">Escalate</button>
+  <div id="action-log" data-testid="iframe-action-log" data-truth-id="iframe-action-log"></div>
+  <script>
+    const logs = [];
+    function log(action) { logs.push(action); document.getElementById("action-log").textContent = logs.join(", "); }
+  </script>
+</body></html>
+' height="180"></iframe>
+  </div>
+
+  <div class="frame-wrapper">
+    <div class="frame-label">Iframe 3: Nested Iframe</div>
+    <iframe id="frame-nested" data-testid="frame-nested" data-truth-id="frame-nested" name="outer-frame"
+            srcdoc='
+<!DOCTYPE html>
+<html><head><style>
+  body { font-family: system-ui, sans-serif; padding: 12px; margin: 0; }
+  .nested-wrapper { border: 1px dashed #999; padding: 8px; margin-top: 8px; }
+</style></head>
+<body>
+  <p data-testid="outer-text" data-truth-id="outer-text">Outer iframe content</p>
+  <div class="nested-wrapper">
+    <iframe data-testid="inner-frame" data-truth-id="inner-frame" name="inner-frame" srcdoc="
+      <html><body style=&quot;font-family:system-ui;padding:8px;margin:0&quot;>
+        <button data-testid=&quot;deeply-nested-btn&quot; data-truth-id=&quot;deeply-nested-btn&quot; onclick=&quot;this.textContent=&apos;Clicked!&apos;&quot;>
+          Click me (nested)
+        </button>
+      </body></html>
+    " width="100%" height="60" style="border:none"></iframe>
+  </div>
+</body></html>
+' height="160"></iframe>
+  </div>
+
+  <script>
+    function hostAction() {
+      document.getElementById('host-status').textContent = 'Host button clicked at ' + new Date().toLocaleTimeString();
+    }
+  </script>
+</body>
+</html>

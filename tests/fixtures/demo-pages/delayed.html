@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Delayed Content Fixture</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 600px; margin: 40px auto; }
+    .section { border: 1px solid #ddd; border-radius: 8px; padding: 16px; margin: 16px 0; }
+    h2 { margin-top: 0; }
+    button { padding: 8px 16px; cursor: pointer; margin: 4px; }
+    .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid #ccc; border-top-color: #0d5b86; border-radius: 50%; animation: spin 0.6s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading { color: #8c5c00; }
+    .loaded { color: #087443; }
+    .card { border: 1px solid #eee; border-radius: 6px; padding: 12px; margin: 8px 0; }
+    .skeleton { background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; height: 20px; border-radius: 4px; margin: 4px 0; }
+    @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+    .hidden { display: none; }
+    .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 100; }
+    .modal-overlay.hidden { display: none; }
+    .modal { background: white; border-radius: 12px; padding: 24px; max-width: 400px; width: 90%; }
+  </style>
+</head>
+<body>
+  <h1 data-testid="delayed-title" data-truth-id="delayed-title">Delayed Content Fixture</h1>
+
+  <!-- Lazy-loaded list -->
+  <div class="section">
+    <h2>Lazy-Loaded Data</h2>
+    <button data-testid="load-data" data-truth-id="load-data" onclick="loadData()">Load Data</button>
+    <div id="data-container" data-testid="data-container" data-truth-id="data-container">
+      <p class="loading" data-testid="data-placeholder" data-truth-id="data-placeholder">Click the button to load data.</p>
+    </div>
+  </div>
+
+  <!-- Skeleton loading pattern -->
+  <div class="section">
+    <h2>Skeleton Loading</h2>
+    <button data-testid="load-skeleton" data-truth-id="load-skeleton" onclick="loadSkeleton()">Load Content</button>
+    <div id="skeleton-container" data-testid="skeleton-container" data-truth-id="skeleton-container"></div>
+  </div>
+
+  <!-- Progressive disclosure -->
+  <div class="section">
+    <h2>Progressive Disclosure</h2>
+    <button data-testid="reveal-step1" data-truth-id="reveal-step1" onclick="revealStep(1)">Start Setup</button>
+    <div id="step1" class="hidden" data-testid="step1" data-truth-id="step1">
+      <p>Step 1: Choose a name</p>
+      <input data-testid="step1-input" data-truth-id="step1-input" placeholder="Workflow name" />
+      <button data-testid="reveal-step2" data-truth-id="reveal-step2" onclick="revealStep(2)">Next</button>
+    </div>
+    <div id="step2" class="hidden" data-testid="step2" data-truth-id="step2">
+      <p>Step 2: Configure</p>
+      <select data-testid="step2-select" data-truth-id="step2-select">
+        <option value="basic">Basic</option>
+        <option value="advanced">Advanced</option>
+      </select>
+      <button data-testid="reveal-step3" data-truth-id="reveal-step3" onclick="revealStep(3)">Next</button>
+    </div>
+    <div id="step3" class="hidden" data-testid="step3" data-truth-id="step3">
+      <p data-testid="step3-complete" data-truth-id="step3-complete">Setup complete!</p>
+    </div>
+  </div>
+
+  <!-- Content that appears after timeout -->
+  <div class="section">
+    <h2>Timed Appearance</h2>
+    <button data-testid="start-timer" data-truth-id="start-timer" onclick="startTimer()">Start 2s Timer</button>
+    <div id="timer-result" class="hidden" data-testid="timer-result" data-truth-id="timer-result">
+      <p data-testid="timer-text" data-truth-id="timer-text">Timer finished! This content appeared after 2 seconds.</p>
+      <button data-testid="timer-action" data-truth-id="timer-action" onclick="document.getElementById('timer-final').textContent='Done!'">
+        Take Action
+      </button>
+      <span id="timer-final" data-testid="timer-final" data-truth-id="timer-final"></span>
+    </div>
+  </div>
+
+  <!-- Modal that appears after delay -->
+  <div class="section">
+    <h2>Delayed Modal</h2>
+    <button data-testid="trigger-modal" data-truth-id="trigger-modal" onclick="triggerModal()">Open Modal (1s delay)</button>
+  </div>
+
+  <div id="modal-overlay" class="modal-overlay hidden" data-testid="modal-overlay" data-truth-id="modal-overlay">
+    <div class="modal" data-testid="modal-content" data-truth-id="modal-content">
+      <h3 data-testid="modal-title" data-truth-id="modal-title">Confirmation Required</h3>
+      <p>Are you sure you want to proceed?</p>
+      <button data-testid="modal-confirm" data-truth-id="modal-confirm" onclick="closeModal('confirmed')">Confirm</button>
+      <button data-testid="modal-cancel" data-truth-id="modal-cancel" onclick="closeModal('cancelled')">Cancel</button>
+    </div>
+  </div>
+
+  <div id="modal-result" class="hidden" data-testid="modal-result" data-truth-id="modal-result"
+       style="margin:16px 0;padding:8px;background:#e8f5e9;border-radius:4px;font-weight:600"></div>
+
+  <!-- Infinite scroll simulation -->
+  <div class="section">
+    <h2>Infinite Scroll</h2>
+    <div id="scroll-container" data-testid="scroll-container" data-truth-id="scroll-container"
+         style="max-height:200px;overflow-y:auto;border:1px solid #eee;border-radius:4px"
+         onscroll="handleScroll()">
+    </div>
+    <div id="scroll-loader" class="hidden" data-testid="scroll-loader" data-truth-id="scroll-loader">
+      <span class="spinner"></span> Loading more...
+    </div>
+  </div>
+
+  <script>
+    // Lazy-loaded data
+    function loadData() {
+      const container = document.getElementById('data-container');
+      container.innerHTML = '<p class="loading"><span class="spinner"></span> Loading...</p>';
+      setTimeout(() => {
+        container.innerHTML = `
+          <div class="card" data-testid="data-item-1" data-truth-id="data-item-1"><strong>Item 1</strong> - Loaded successfully</div>
+          <div class="card" data-testid="data-item-2" data-truth-id="data-item-2"><strong>Item 2</strong> - Loaded successfully</div>
+          <div class="card" data-testid="data-item-3" data-truth-id="data-item-3"><strong>Item 3</strong> - Loaded successfully</div>
+          <p class="loaded" data-testid="data-loaded" data-truth-id="data-loaded">3 items loaded.</p>
+        `;
+      }, 1500);
+    }
+
+    // Skeleton loading
+    function loadSkeleton() {
+      const container = document.getElementById('skeleton-container');
+      container.innerHTML = `
+        <div class="card"><div class="skeleton" style="width:60%"></div><div class="skeleton" style="width:80%"></div></div>
+        <div class="card"><div class="skeleton" style="width:50%"></div><div class="skeleton" style="width:70%"></div></div>
+      `;
+      setTimeout(() => {
+        container.innerHTML = `
+          <div class="card" data-testid="skeleton-item-1" data-truth-id="skeleton-item-1"><strong>User: Alice</strong><br/>alice@example.com</div>
+          <div class="card" data-testid="skeleton-item-2" data-truth-id="skeleton-item-2"><strong>User: Bob</strong><br/>bob@example.com</div>
+          <p class="loaded" data-testid="skeleton-loaded" data-truth-id="skeleton-loaded">Content loaded.</p>
+        `;
+      }, 2000);
+    }
+
+    // Progressive disclosure
+    function revealStep(n) {
+      for (let i = 1; i <= 3; i++) {
+        document.getElementById('step' + i).classList.toggle('hidden', i > n);
+      }
+    }
+
+    // Timed appearance
+    function startTimer() {
+      setTimeout(() => {
+        document.getElementById('timer-result').classList.remove('hidden');
+      }, 2000);
+    }
+
+    // Delayed modal
+    function triggerModal() {
+      setTimeout(() => {
+        document.getElementById('modal-overlay').classList.remove('hidden');
+      }, 1000);
+    }
+    function closeModal(action) {
+      document.getElementById('modal-overlay').classList.add('hidden');
+      const result = document.getElementById('modal-result');
+      result.textContent = 'Modal ' + action;
+      result.classList.remove('hidden');
+    }
+
+    // Infinite scroll
+    let scrollPage = 0;
+    function loadScrollItems() {
+      const container = document.getElementById('scroll-container');
+      for (let i = 0; i < 10; i++) {
+        const idx = scrollPage * 10 + i + 1;
+        const div = document.createElement('div');
+        div.style.cssText = 'padding:8px;border-bottom:1px solid #eee';
+        div.dataset.testid = 'scroll-item-' + idx;
+        div.textContent = 'Scroll Item ' + idx;
+        container.appendChild(div);
+      }
+      scrollPage++;
+    }
+    loadScrollItems(); // Initial load
+
+    let scrollLoading = false;
+    function handleScroll() {
+      const el = document.getElementById('scroll-container');
+      if (el.scrollTop + el.clientHeight >= el.scrollHeight - 20 && !scrollLoading && scrollPage < 5) {
+        scrollLoading = true;
+        document.getElementById('scroll-loader').classList.remove('hidden');
+        setTimeout(() => {
+          loadScrollItems();
+          scrollLoading = false;
+          document.getElementById('scroll-loader').classList.add('hidden');
+        }, 800);
+      }
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Dropdowns Fixture</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 600px; margin: 40px auto; }
+    label { display: block; margin: 16px 0 4px; font-weight: 600; }
+    select { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
+    .custom-dropdown { position: relative; display: inline-block; width: 100%; }
+    .custom-dropdown .trigger {
+      padding: 8px; border: 1px solid #ccc; border-radius: 4px; cursor: pointer;
+      background: #fff; display: flex; justify-content: space-between; align-items: center;
+    }
+    .custom-dropdown .menu {
+      display: none; position: absolute; top: 100%; left: 0; right: 0;
+      border: 1px solid #ccc; border-radius: 4px; background: #fff; z-index: 10;
+      max-height: 200px; overflow-y: auto; box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    .custom-dropdown.open .menu { display: block; }
+    .custom-dropdown .menu-item {
+      padding: 8px 12px; cursor: pointer;
+    }
+    .custom-dropdown .menu-item:hover { background: #f0f0f0; }
+    .custom-dropdown .menu-item.selected { background: #e3f2fd; font-weight: 600; }
+    .combobox-wrapper { position: relative; }
+    .combobox-list {
+      display: none; position: absolute; top: 100%; left: 0; right: 0;
+      border: 1px solid #ccc; border-radius: 4px; background: #fff; z-index: 10;
+      max-height: 150px; overflow-y: auto;
+    }
+    .combobox-list.open { display: block; }
+    .combobox-item { padding: 6px 12px; cursor: pointer; }
+    .combobox-item:hover { background: #f0f0f0; }
+    .result { margin-top: 12px; padding: 8px; background: #e8f5e9; border-radius: 4px; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <h1>Dropdowns Fixture</h1>
+
+  <!-- Native select -->
+  <label for="native-select">Country (native select)</label>
+  <select id="native-select" data-testid="native-select" data-truth-id="native-select" onchange="showSelection('native', this.value)">
+    <option value="">-- Choose --</option>
+    <option value="us">United States</option>
+    <option value="uk">United Kingdom</option>
+    <option value="de">Germany</option>
+    <option value="jp">Japan</option>
+    <option value="gh">Ghana</option>
+  </select>
+
+  <!-- Multi-select -->
+  <label for="multi-select">Skills (multi-select)</label>
+  <select id="multi-select" data-testid="multi-select" data-truth-id="multi-select" multiple size="4"
+          onchange="showMultiSelection()">
+    <option value="js">JavaScript</option>
+    <option value="ts">TypeScript</option>
+    <option value="py">Python</option>
+    <option value="go">Go</option>
+    <option value="rs">Rust</option>
+  </select>
+
+  <!-- Custom dropdown (div-based, ARIA) -->
+  <label id="custom-label">Priority (custom dropdown)</label>
+  <div class="custom-dropdown" id="custom-dropdown" data-testid="custom-dropdown" data-truth-id="custom-dropdown"
+       role="listbox" aria-labelledby="custom-label">
+    <div class="trigger" data-testid="custom-trigger" data-truth-id="custom-trigger"
+         onclick="toggleCustom()" role="button" aria-haspopup="listbox">
+      <span id="custom-value">Select priority...</span>
+      <span>&#9662;</span>
+    </div>
+    <div class="menu" role="presentation">
+      <div class="menu-item" data-testid="opt-low" data-truth-id="opt-low" role="option"
+           onclick="selectCustom('Low')">Low</div>
+      <div class="menu-item" data-testid="opt-medium" data-truth-id="opt-medium" role="option"
+           onclick="selectCustom('Medium')">Medium</div>
+      <div class="menu-item" data-testid="opt-high" data-truth-id="opt-high" role="option"
+           onclick="selectCustom('High')">High</div>
+      <div class="menu-item" data-testid="opt-critical" data-truth-id="opt-critical" role="option"
+           onclick="selectCustom('Critical')">Critical</div>
+    </div>
+  </div>
+
+  <!-- Combobox / autocomplete -->
+  <label for="combobox-input">City (combobox/autocomplete)</label>
+  <div class="combobox-wrapper">
+    <input id="combobox-input" type="text" placeholder="Type a city..."
+           data-testid="combobox-input" data-truth-id="combobox-input" role="combobox" aria-expanded="false"
+           aria-autocomplete="list" aria-controls="combobox-list"
+           oninput="filterCities()" onfocus="filterCities()" />
+    <div id="combobox-list" class="combobox-list" role="listbox" data-testid="combobox-list" data-truth-id="combobox-list"></div>
+  </div>
+
+  <div id="selection-result" class="result" data-testid="selection-result" data-truth-id="selection-result" style="display:none"></div>
+
+  <script>
+    function showSelection(type, val) {
+      const el = document.getElementById('selection-result');
+      el.textContent = `${type}: ${val}`;
+      el.style.display = 'block';
+    }
+    function showMultiSelection() {
+      const sel = document.getElementById('multi-select');
+      const vals = Array.from(sel.selectedOptions).map(o => o.value);
+      showSelection('multi', vals.join(', '));
+    }
+
+    function toggleCustom() {
+      document.getElementById('custom-dropdown').classList.toggle('open');
+    }
+    function selectCustom(val) {
+      document.getElementById('custom-value').textContent = val;
+      document.getElementById('custom-dropdown').classList.remove('open');
+      document.querySelectorAll('.custom-dropdown .menu-item').forEach(el => {
+        el.classList.toggle('selected', el.textContent === val);
+      });
+      showSelection('custom', val);
+    }
+
+    const CITIES = ['New York', 'Los Angeles', 'Chicago', 'Houston', 'Phoenix',
+      'Philadelphia', 'San Antonio', 'San Diego', 'Dallas', 'Austin',
+      'London', 'Berlin', 'Tokyo', 'Accra', 'Lagos', 'Nairobi'];
+
+    function filterCities() {
+      const input = document.getElementById('combobox-input');
+      const list = document.getElementById('combobox-list');
+      const q = input.value.toLowerCase();
+      const matches = q ? CITIES.filter(c => c.toLowerCase().includes(q)) : CITIES;
+      list.innerHTML = matches.map(c =>
+        `<div class="combobox-item" role="option" data-testid="city-${c.toLowerCase().replace(/\s/g,'-')}" data-truth-id="city-${c.toLowerCase().replace(/\s/g,'-')}"
+              onclick="selectCity('${c}')">${c}</div>`
+      ).join('');
+      list.classList.toggle('open', matches.length > 0 && document.activeElement === input);
+      input.setAttribute('aria-expanded', matches.length > 0 ? 'true' : 'false');
+    }
+    function selectCity(city) {
+      document.getElementById('combobox-input').value = city;
+      document.getElementById('combobox-list').classList.remove('open');
+      showSelection('city', city);
+    }
+
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.custom-dropdown')) {
+        document.getElementById('custom-dropdown').classList.remove('open');
+      }
+      if (!e.target.closest('.combobox-wrapper')) {
+        document.getElementById('combobox-list').classList.remove('open');
+      }
+    });
+  </script>
+</body>
+</html>

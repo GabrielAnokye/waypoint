@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>SPA Route Changes Fixture</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 600px; margin: 40px auto; }
+    nav { display: flex; gap: 12px; padding: 12px 0; border-bottom: 2px solid #eee; margin-bottom: 16px; }
+    nav a { text-decoration: none; color: #0d5b86; font-weight: 600; padding: 4px 8px; border-radius: 4px; }
+    nav a.active { background: #0d5b86; color: #fff; }
+    .page { display: none; }
+    .page.active { display: block; }
+    button { padding: 8px 16px; cursor: pointer; margin: 4px; }
+    .card { border: 1px solid #ddd; border-radius: 8px; padding: 16px; margin: 12px 0; }
+  </style>
+</head>
+<body>
+  <h1 data-testid="app-title" data-truth-id="app-title">SPA Demo</h1>
+
+  <nav id="nav" data-testid="nav" data-truth-id="nav">
+    <a href="#/" data-testid="nav-home" data-truth-id="nav-home" onclick="navigate('/')">Home</a>
+    <a href="#/dashboard" data-testid="nav-dashboard" data-truth-id="nav-dashboard" onclick="navigate('/dashboard')">Dashboard</a>
+    <a href="#/settings" data-testid="nav-settings" data-truth-id="nav-settings" onclick="navigate('/settings')">Settings</a>
+    <a href="#/profile" data-testid="nav-profile" data-truth-id="nav-profile" onclick="navigate('/profile')">Profile</a>
+  </nav>
+
+  <div id="view" data-testid="view-container" data-truth-id="view-container">
+    <!-- Pages rendered dynamically -->
+  </div>
+
+  <script>
+    const pages = {
+      '/': `
+        <div class="page active" data-testid="page-home" data-truth-id="page-home">
+          <h2>Home</h2>
+          <p>Welcome to the SPA fixture. Use the nav to test route changes.</p>
+          <button data-testid="go-dashboard" data-truth-id="go-dashboard" onclick="navigate('/dashboard')">Go to Dashboard</button>
+          <button data-testid="go-settings" data-truth-id="go-settings" onclick="navigate('/settings')">Open Settings</button>
+        </div>
+      `,
+      '/dashboard': `
+        <div class="page active" data-testid="page-dashboard" data-truth-id="page-dashboard">
+          <h2 data-testid="dashboard-heading" data-truth-id="dashboard-heading">Dashboard</h2>
+          <div class="card">
+            <p data-testid="dashboard-stat" data-truth-id="dashboard-stat">Active workflows: 3</p>
+          </div>
+          <div class="card">
+            <p>Recent runs: 12 succeeded, 1 failed</p>
+            <button data-testid="view-runs" data-truth-id="view-runs" onclick="navigate('/dashboard/runs')">View All Runs</button>
+          </div>
+        </div>
+      `,
+      '/dashboard/runs': `
+        <div class="page active" data-testid="page-runs" data-truth-id="page-runs">
+          <h2>All Runs</h2>
+          <button data-testid="back-dashboard" data-truth-id="back-dashboard" onclick="navigate('/dashboard')">Back to Dashboard</button>
+          <ul>
+            <li data-testid="run-1" data-truth-id="run-1">Run #1 - succeeded</li>
+            <li data-testid="run-2" data-truth-id="run-2">Run #2 - succeeded</li>
+            <li data-testid="run-3" data-truth-id="run-3">Run #3 - failed</li>
+          </ul>
+        </div>
+      `,
+      '/settings': `
+        <div class="page active" data-testid="page-settings" data-truth-id="page-settings">
+          <h2>Settings</h2>
+          <label>
+            <input type="checkbox" data-testid="dark-mode" data-truth-id="dark-mode" /> Enable dark mode
+          </label>
+          <br/>
+          <label>
+            <input type="checkbox" data-testid="notifications" data-truth-id="notifications" checked /> Enable notifications
+          </label>
+          <br/>
+          <button data-testid="save-settings" data-truth-id="save-settings" onclick="saveSettings()">Save Settings</button>
+          <div id="settings-saved" data-testid="settings-saved" data-truth-id="settings-saved" style="display:none;color:#087443;margin-top:8px">
+            Settings saved!
+          </div>
+        </div>
+      `,
+      '/profile': `
+        <div class="page active" data-testid="page-profile" data-truth-id="page-profile">
+          <h2>Profile</h2>
+          <div class="card">
+            <p data-testid="profile-name" data-truth-id="profile-name">Name: Jane Doe</p>
+            <p data-testid="profile-email" data-truth-id="profile-email">Email: jane@example.com</p>
+            <button data-testid="edit-profile" data-truth-id="edit-profile" onclick="navigate('/profile/edit')">Edit Profile</button>
+          </div>
+        </div>
+      `,
+      '/profile/edit': `
+        <div class="page active" data-testid="page-profile-edit" data-truth-id="page-profile-edit">
+          <h2>Edit Profile</h2>
+          <label for="edit-name">Name</label>
+          <input id="edit-name" data-testid="edit-name" data-truth-id="edit-name" value="Jane Doe" />
+          <br/><br/>
+          <button data-testid="save-profile" data-truth-id="save-profile" onclick="navigate('/profile')">Save & Back</button>
+        </div>
+      `
+    };
+
+    function navigate(path) {
+      event && event.preventDefault && event.preventDefault();
+      history.pushState({ path }, '', '#' + path);
+      renderPage(path);
+    }
+
+    function renderPage(path) {
+      const html = pages[path] || `<div class="page active" data-testid="page-404" data-truth-id="page-404"><h2>404 Not Found</h2></div>`;
+      document.getElementById('view').innerHTML = html;
+      document.querySelectorAll('#nav a').forEach(a => {
+        const href = a.getAttribute('href').replace('#', '');
+        a.classList.toggle('active', path === href || (href !== '/' && path.startsWith(href)));
+      });
+    }
+
+    function saveSettings() {
+      document.getElementById('settings-saved').style.display = 'block';
+    }
+
+    window.addEventListener('popstate', (e) => {
+      const path = e.state?.path || '/';
+      renderPage(path);
+    });
+
+    // Initial render
+    const initialPath = location.hash ? location.hash.slice(1) : '/';
+    renderPage(initialPath);
+  </script>
+</body>
+</html>

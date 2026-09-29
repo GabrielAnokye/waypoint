@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Shadow DOM Fixture</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 600px; margin: 40px auto; }
+    .section { border: 1px solid #ddd; border-radius: 8px; padding: 16px; margin: 16px 0; }
+    h2 { margin-top: 0; }
+    #light-status { margin-top: 8px; color: #087443; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <h1 data-testid="shadow-dom-title" data-truth-id="shadow-dom-title">Shadow DOM Fixture</h1>
+
+  <!-- Light DOM control for comparison -->
+  <div class="section">
+    <h2>Light DOM (control)</h2>
+    <button data-testid="light-button" data-truth-id="light-button" onclick="document.getElementById('light-status').textContent='Light clicked'">
+      Light Button
+    </button>
+    <input data-testid="light-input" data-truth-id="light-input" placeholder="Light input" />
+    <div id="light-status" data-testid="light-status" data-truth-id="light-status"></div>
+  </div>
+
+  <!-- Custom element with open shadow root -->
+  <div class="section">
+    <h2>Open Shadow Root</h2>
+    <rf-card data-testid="rf-card" data-truth-id="rf-card"></rf-card>
+  </div>
+
+  <!-- Custom element with closed shadow root (harder to pierce) -->
+  <div class="section">
+    <h2>Closed Shadow Root</h2>
+    <rf-sealed data-testid="rf-sealed" data-truth-id="rf-sealed"></rf-sealed>
+  </div>
+
+  <!-- Nested shadow roots -->
+  <div class="section">
+    <h2>Nested Shadow Roots</h2>
+    <rf-outer data-testid="rf-outer" data-truth-id="rf-outer"></rf-outer>
+  </div>
+
+  <!-- Shadow root with slotted content -->
+  <div class="section">
+    <h2>Slotted Content</h2>
+    <rf-panel data-testid="rf-panel" data-truth-id="rf-panel">
+      <span slot="title">Panel Title</span>
+      <button slot="actions" data-testid="slotted-button" data-truth-id="slotted-button">Slotted Button</button>
+    </rf-panel>
+  </div>
+
+  <script>
+    // Open shadow root component
+    class RfCard extends HTMLElement {
+      constructor() {
+        super();
+        const shadow = this.attachShadow({ mode: 'open' });
+        shadow.innerHTML = `
+          <style>
+            :host { display: block; border: 2px solid #0d5b86; border-radius: 8px; padding: 16px; }
+            button { padding: 8px 16px; cursor: pointer; background: #0d5b86; color: white; border: none; border-radius: 4px; }
+            input { padding: 6px; border: 1px solid #ccc; border-radius: 4px; width: 100%; box-sizing: border-box; margin: 8px 0; }
+            .result { margin-top: 8px; color: #087443; }
+          </style>
+          <h3>Card Component</h3>
+          <input data-testid="shadow-input" data-truth-id="shadow-input" placeholder="Type in shadow DOM" />
+          <button data-testid="shadow-button" data-truth-id="shadow-button">Shadow Button</button>
+          <div class="result" data-testid="shadow-result" data-truth-id="shadow-result"></div>
+        `;
+        shadow.querySelector('button').addEventListener('click', () => {
+          shadow.querySelector('.result').textContent =
+            'Shadow clicked! Input: ' + shadow.querySelector('input').value;
+        });
+      }
+    }
+    customElements.define('rf-card', RfCard);
+
+    // Closed shadow root
+    class RfSealed extends HTMLElement {
+      #shadow;
+      constructor() {
+        super();
+        this.#shadow = this.attachShadow({ mode: 'closed' });
+        this.#shadow.innerHTML = `
+          <style>
+            :host { display: block; border: 2px solid #8a1c26; border-radius: 8px; padding: 16px; }
+            button { padding: 8px 16px; cursor: pointer; }
+            .result { margin-top: 8px; color: #8a1c26; }
+          </style>
+          <h3>Sealed Component</h3>
+          <button data-testid="sealed-button" data-truth-id="sealed-button">Sealed Button</button>
+          <div class="result" data-testid="sealed-result" data-truth-id="sealed-result"></div>
+        `;
+        this.#shadow.querySelector('button').addEventListener('click', () => {
+          this.#shadow.querySelector('.result').textContent = 'Sealed button clicked!';
+        });
+      }
+    }
+    customElements.define('rf-sealed', RfSealed);
+
+    // Nested shadow roots
+    class RfInner extends HTMLElement {
+      constructor() {
+        super();
+        const shadow = this.attachShadow({ mode: 'open' });
+        shadow.innerHTML = `
+          <style>
+            button { padding: 6px 12px; cursor: pointer; background: #087443; color: white; border: none; border-radius: 4px; }
+            .result { margin-top: 4px; font-size: 12px; color: #087443; }
+          </style>
+          <button data-testid="nested-inner-button" data-truth-id="nested-inner-button">Inner Shadow Button</button>
+          <div class="result" data-testid="nested-inner-result" data-truth-id="nested-inner-result"></div>
+        `;
+        shadow.querySelector('button').addEventListener('click', () => {
+          shadow.querySelector('.result').textContent = 'Inner clicked!';
+        });
+      }
+    }
+    customElements.define('rf-inner', RfInner);
+
+    class RfOuter extends HTMLElement {
+      constructor() {
+        super();
+        const shadow = this.attachShadow({ mode: 'open' });
+        shadow.innerHTML = `
+          <style>
+            :host { display: block; border: 2px solid #8c5c00; border-radius: 8px; padding: 16px; }
+            button { padding: 6px 12px; cursor: pointer; margin-bottom: 8px; }
+          </style>
+          <h3>Outer Component</h3>
+          <button data-testid="nested-outer-button" data-truth-id="nested-outer-button">Outer Shadow Button</button>
+          <rf-inner data-testid="nested-inner-component" data-truth-id="nested-inner-component"></rf-inner>
+        `;
+      }
+    }
+    customElements.define('rf-outer', RfOuter);
+
+    // Slotted content component
+    class RfPanel extends HTMLElement {
+      constructor() {
+        super();
+        const shadow = this.attachShadow({ mode: 'open' });
+        shadow.innerHTML = `
+          <style>
+            :host { display: block; border: 2px solid #446074; border-radius: 8px; overflow: hidden; }
+            .header { background: #446074; color: white; padding: 12px; display: flex; justify-content: space-between; align-items: center; }
+            .body { padding: 16px; }
+          </style>
+          <div class="header">
+            <slot name="title"></slot>
+            <slot name="actions"></slot>
+          </div>
+          <div class="body">
+            <p data-testid="panel-body-text" data-truth-id="panel-body-text">Panel body content</p>
+          </div>
+        `;
+      }
+    }
+    customElements.define('rf-panel', RfPanel);
+  </script>
+</body>
+</html>

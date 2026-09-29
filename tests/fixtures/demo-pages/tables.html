@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Tables Fixture</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 800px; margin: 40px auto; }
+    table { width: 100%; border-collapse: collapse; margin: 16px 0; }
+    th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+    th { background: #f5f5f5; font-weight: 700; }
+    tr:hover { background: #fafafa; }
+    button { padding: 4px 10px; cursor: pointer; border: 1px solid #ccc; border-radius: 4px; background: #fff; }
+    button:hover { background: #eee; }
+    .pagination { display: flex; gap: 4px; margin: 12px 0; }
+    .pagination button.active { background: #0d5b86; color: #fff; border-color: #0d5b86; }
+    .toolbar { display: flex; gap: 8px; margin: 12px 0; align-items: center; }
+    .sort-indicator { font-size: 10px; margin-left: 4px; }
+    #status { margin-top: 8px; color: #087443; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <h1>Tables Fixture</h1>
+
+  <div class="toolbar">
+    <input id="search" type="text" placeholder="Search..." data-testid="table-search" data-truth-id="table-search"
+           oninput="filterTable()" style="padding: 6px 10px; border: 1px solid #ccc; border-radius: 4px;" />
+    <button data-testid="select-all" data-truth-id="select-all" onclick="toggleSelectAll()">Select All</button>
+    <button data-testid="delete-selected" data-truth-id="delete-selected" onclick="deleteSelected()">Delete Selected</button>
+  </div>
+
+  <table data-testid="data-table" data-truth-id="data-table" role="table">
+    <thead>
+      <tr>
+        <th><input type="checkbox" id="header-check" data-truth-id="header-check" onchange="toggleSelectAll()" /></th>
+        <th onclick="sortBy('name')" style="cursor:pointer" data-testid="col-name" data-truth-id="col-name">
+          Name <span class="sort-indicator" id="sort-name"></span>
+        </th>
+        <th onclick="sortBy('email')" style="cursor:pointer" data-testid="col-email" data-truth-id="col-email">
+          Email <span class="sort-indicator" id="sort-email"></span>
+        </th>
+        <th data-testid="col-role" data-truth-id="col-role">Role</th>
+        <th data-testid="col-actions" data-truth-id="col-actions">Actions</th>
+      </tr>
+    </thead>
+    <tbody id="table-body"></tbody>
+  </table>
+
+  <div class="pagination" id="pagination" data-testid="pagination" data-truth-id="pagination"></div>
+  <div id="status" data-testid="table-status" data-truth-id="table-status"></div>
+
+  <script>
+    const DATA = [];
+    for (let i = 1; i <= 50; i++) {
+      DATA.push({
+        id: i,
+        name: `User ${i}`,
+        email: `user${i}@example.com`,
+        role: i % 3 === 0 ? 'Admin' : i % 3 === 1 ? 'Editor' : 'Viewer'
+      });
+    }
+
+    let currentPage = 1;
+    const pageSize = 10;
+    let sortField = null;
+    let sortAsc = true;
+    let searchTerm = '';
+    const selected = new Set();
+
+    function getFiltered() {
+      let rows = DATA;
+      if (searchTerm) {
+        const q = searchTerm.toLowerCase();
+        rows = rows.filter(r => r.name.toLowerCase().includes(q) || r.email.toLowerCase().includes(q));
+      }
+      if (sortField) {
+        rows = [...rows].sort((a, b) => {
+          const v = a[sortField].localeCompare(b[sortField]);
+          return sortAsc ? v : -v;
+        });
+      }
+      return rows;
+    }
+
+    function render() {
+      const filtered = getFiltered();
+      const totalPages = Math.ceil(filtered.length / pageSize);
+      const page = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+      const tbody = document.getElementById('table-body');
+      tbody.innerHTML = page.map(r => `
+        <tr data-row-id="${r.id}">
+          <td><input type="checkbox" data-testid="row-check-${r.id}" data-truth-id="row-check-${r.id}" ${selected.has(r.id) ? 'checked' : ''}
+              onchange="toggleRow(${r.id})" /></td>
+          <td data-testid="cell-name-${r.id}" data-truth-id="cell-name-${r.id}">${r.name}</td>
+          <td data-testid="cell-email-${r.id}" data-truth-id="cell-email-${r.id}">${r.email}</td>
+          <td data-testid="cell-role-${r.id}" data-truth-id="cell-role-${r.id}">${r.role}</td>
+          <td>
+            <button data-testid="edit-${r.id}" data-truth-id="edit-${r.id}" onclick="editRow(${r.id})">Edit</button>
+            <button data-testid="delete-${r.id}" data-truth-id="delete-${r.id}" onclick="deleteRow(${r.id})">Delete</button>
+          </td>
+        </tr>
+      `).join('');
+
+      const pag = document.getElementById('pagination');
+      pag.innerHTML = '';
+      for (let p = 1; p <= totalPages; p++) {
+        const btn = document.createElement('button');
+        btn.textContent = p;
+        btn.className = p === currentPage ? 'active' : '';
+        btn.dataset.testid = `page-${p}`;
+        btn.onclick = () => { currentPage = p; render(); };
+        pag.appendChild(btn);
+      }
+    }
+
+    function sortBy(field) {
+      if (sortField === field) { sortAsc = !sortAsc; } else { sortField = field; sortAsc = true; }
+      document.getElementById('sort-name').textContent = sortField === 'name' ? (sortAsc ? '\u25B2' : '\u25BC') : '';
+      document.getElementById('sort-email').textContent = sortField === 'email' ? (sortAsc ? '\u25B2' : '\u25BC') : '';
+      render();
+    }
+
+    function filterTable() {
+      searchTerm = document.getElementById('search').value;
+      currentPage = 1;
+      render();
+    }
+
+    function toggleRow(id) { selected.has(id) ? selected.delete(id) : selected.add(id); }
+    function toggleSelectAll() {
+      const all = getFiltered().slice((currentPage-1)*pageSize, currentPage*pageSize);
+      const allSelected = all.every(r => selected.has(r.id));
+      all.forEach(r => allSelected ? selected.delete(r.id) : selected.add(r.id));
+      render();
+    }
+
+    function editRow(id) {
+      const row = DATA.find(r => r.id === id);
+      const name = prompt('New name:', row.name);
+      if (name) { row.name = name; render(); setStatus(`Updated user ${id}`); }
+    }
+
+    function deleteRow(id) {
+      const idx = DATA.findIndex(r => r.id === id);
+      if (idx !== -1) { DATA.splice(idx, 1); selected.delete(id); render(); setStatus(`Deleted user ${id}`); }
+    }
+
+    function deleteSelected() {
+      selected.forEach(id => { const idx = DATA.findIndex(r => r.id === id); if (idx !== -1) DATA.splice(idx, 1); });
+      const count = selected.size; selected.clear(); render(); setStatus(`Deleted ${count} user(s)`);
+    }
+
+    function setStatus(msg) { document.getElementById('status').textContent = msg; }
+
+    render();
+  </script>
+</body>
+</html>

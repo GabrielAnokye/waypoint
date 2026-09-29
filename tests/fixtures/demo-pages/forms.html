@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Forms Fixture</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 600px; margin: 40px auto; }
+    label { display: block; margin: 12px 0 4px; font-weight: 600; }
+    input, select, textarea { width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
+    button { margin-top: 12px; padding: 10px 20px; cursor: pointer; }
+    fieldset { border: 1px solid #ddd; border-radius: 8px; padding: 16px; margin: 16px 0; }
+    .result { margin-top: 16px; padding: 12px; background: #e8f5e9; border-radius: 4px; display: none; }
+  </style>
+</head>
+<body>
+  <h1>Forms Fixture</h1>
+
+  <!-- Simple login form -->
+  <fieldset>
+    <legend>Login Form</legend>
+    <form id="login-form" onsubmit="handleLogin(event)">
+      <label for="login-email">Email</label>
+      <input id="login-email" name="email" type="email" placeholder="you@example.com"
+             data-testid="login-email" data-truth-id="login-email" aria-label="Email address" required />
+
+      <label for="login-password">Password</label>
+      <input id="login-password" name="password" type="password" placeholder="Enter password"
+             autocomplete="current-password" data-testid="login-password" data-truth-id="login-password" required />
+
+      <label>
+        <input type="checkbox" name="remember" data-testid="remember-me" data-truth-id="remember-me" /> Remember me
+      </label>
+
+      <button type="submit" data-testid="login-submit" data-truth-id="login-submit">Sign in</button>
+    </form>
+    <div id="login-result" class="result" data-testid="login-result" data-truth-id="login-result"></div>
+  </fieldset>
+
+  <!-- Registration form with more field types -->
+  <fieldset>
+    <legend>Registration</legend>
+    <form id="register-form" onsubmit="handleRegister(event)">
+      <label for="reg-name">Full Name</label>
+      <input id="reg-name" name="name" type="text" placeholder="Jane Doe" data-testid="reg-name" data-truth-id="reg-name" />
+
+      <label for="reg-phone">Phone</label>
+      <input id="reg-phone" name="phone" type="tel" placeholder="+1 555-0100" data-testid="reg-phone" data-truth-id="reg-phone" />
+
+      <label for="reg-dob">Date of Birth</label>
+      <input id="reg-dob" name="dob" type="date" data-testid="reg-dob" data-truth-id="reg-dob" />
+
+      <label for="reg-bio">Bio</label>
+      <textarea id="reg-bio" name="bio" rows="3" placeholder="Tell us about yourself"
+                data-testid="reg-bio" data-truth-id="reg-bio"></textarea>
+
+      <label>Gender</label>
+      <label><input type="radio" name="gender" value="female" data-truth-id="gender-female" /> Female</label>
+      <label><input type="radio" name="gender" value="male" data-truth-id="gender-male" /> Male</label>
+      <label><input type="radio" name="gender" value="other" data-truth-id="gender-other" /> Other</label>
+
+      <label for="reg-file">Profile Photo</label>
+      <input id="reg-file" name="photo" type="file" accept="image/*" data-testid="reg-file" data-truth-id="reg-file" />
+
+      <button type="submit" data-testid="reg-submit" data-truth-id="reg-submit">Register</button>
+    </form>
+    <div id="register-result" class="result" data-testid="register-result" data-truth-id="register-result"></div>
+  </fieldset>
+
+  <!-- Sensitive fields for redaction testing -->
+  <fieldset>
+    <legend>Payment (redaction test)</legend>
+    <form id="payment-form" onsubmit="event.preventDefault()">
+      <label for="cc-number">Card Number</label>
+      <input id="cc-number" name="cc-number" autocomplete="cc-number" placeholder="4111 1111 1111 1111"
+             data-testid="cc-number" data-truth-id="cc-number" />
+
+      <label for="cc-cvv">CVV</label>
+      <input id="cc-cvv" name="cvv" type="password" placeholder="123" data-testid="cc-cvv" data-truth-id="cc-cvv" />
+
+      <label for="ssn">SSN</label>
+      <input id="ssn" name="ssn" placeholder="123-45-6789" data-testid="ssn-field" data-truth-id="ssn-field" />
+
+      <label for="api-token">API Token</label>
+      <input id="api-token" name="api_token" placeholder="sk_live_..." data-testid="api-token" data-truth-id="api-token" />
+    </form>
+  </fieldset>
+
+  <script>
+    function handleLogin(e) {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const el = document.getElementById('login-result');
+      el.textContent = `Logged in as ${fd.get('email')}`;
+      el.style.display = 'block';
+    }
+    function handleRegister(e) {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const el = document.getElementById('register-result');
+      el.textContent = `Registered ${fd.get('name')}`;
+      el.style.display = 'block';
+    }
+  </script>
+</body>
+</html>

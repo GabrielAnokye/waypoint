@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Ambiguous Selectors Fixture</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 700px; margin: 40px auto; }
+    .section { border: 1px solid #ddd; border-radius: 8px; padding: 16px; margin: 16px 0; }
+    h2 { margin-top: 0; }
+    button { padding: 8px 16px; cursor: pointer; margin: 4px; }
+    .card { border: 1px solid #eee; border-radius: 6px; padding: 12px; margin: 8px 0; display: flex; justify-content: space-between; align-items: center; }
+    .card .name { font-weight: 600; }
+    #status { margin-top: 12px; padding: 8px; background: #e8f5e9; border-radius: 4px; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <h1 data-testid="ambiguous-title" data-truth-id="ambiguous-title">Ambiguous Selectors Fixture</h1>
+
+  <!-- Multiple buttons with identical text -->
+  <div class="section">
+    <h2>Same-text buttons</h2>
+    <p>Three "Delete" buttons with no distinguishing ARIA attributes:</p>
+    <div class="card">
+      <span class="name">Item Alpha</span>
+      <button class="delete-btn" data-truth-id="delete-alpha" onclick="setStatus('Deleted Alpha')">Delete</button>
+    </div>
+    <div class="card">
+      <span class="name">Item Beta</span>
+      <button class="delete-btn" data-truth-id="delete-beta" onclick="setStatus('Deleted Beta')">Delete</button>
+    </div>
+    <div class="card">
+      <span class="name">Item Gamma</span>
+      <button class="delete-btn" data-truth-id="delete-gamma" onclick="setStatus('Deleted Gamma')">Delete</button>
+    </div>
+  </div>
+
+  <!-- Multiple buttons with same role but different contexts -->
+  <div class="section">
+    <h2>Submit buttons in different forms</h2>
+    <form style="margin-bottom: 12px;" onsubmit="event.preventDefault(); setStatus('Form A submitted')">
+      <input placeholder="Form A input" data-truth-id="form-a-input" />
+      <button type="submit" role="button" data-truth-id="form-a-submit">Submit</button>
+    </form>
+    <form onsubmit="event.preventDefault(); setStatus('Form B submitted')">
+      <input placeholder="Form B input" data-truth-id="form-b-input" />
+      <button type="submit" role="button" data-truth-id="form-b-submit">Submit</button>
+    </form>
+  </div>
+
+  <!-- Links with identical text -->
+  <div class="section">
+    <h2>Same-text links</h2>
+    <ul>
+      <li>Product A — <a href="#" data-truth-id="view-a" onclick="event.preventDefault(); setStatus('Viewed A')">View details</a></li>
+      <li>Product B — <a href="#" data-truth-id="view-b" onclick="event.preventDefault(); setStatus('Viewed B')">View details</a></li>
+      <li>Product C — <a href="#" data-truth-id="view-c" onclick="event.preventDefault(); setStatus('Viewed C')">View details</a></li>
+    </ul>
+  </div>
+
+  <!-- Same class, same tag, no unique attributes -->
+  <div class="section">
+    <h2>Generic divs (no unique attributes)</h2>
+    <div class="item-row" data-truth-id="row-1" onclick="setStatus('Clicked row 1')">
+      <span>Row 1 content</span>
+    </div>
+    <div class="item-row" data-truth-id="row-2" onclick="setStatus('Clicked row 2')">
+      <span>Row 2 content</span>
+    </div>
+    <div class="item-row" data-truth-id="row-3" onclick="setStatus('Clicked row 3')">
+      <span>Row 3 content</span>
+    </div>
+  </div>
+
+  <!-- Buttons distinguishable only by data-testid -->
+  <div class="section">
+    <h2>Buttons with data-testid (only differentiator)</h2>
+    <button class="action-btn" data-testid="action-save" data-truth-id="action-save" onclick="setStatus('Saved')">Action</button>
+    <button class="action-btn" data-testid="action-cancel" data-truth-id="action-cancel" onclick="setStatus('Cancelled')">Action</button>
+    <button class="action-btn" data-testid="action-reset" data-truth-id="action-reset" onclick="setStatus('Reset')">Action</button>
+  </div>
+
+  <!-- Inputs with no labels -->
+  <div class="section">
+    <h2>Unlabeled inputs</h2>
+    <input class="bare-input" data-truth-id="bare-first" placeholder="First" />
+    <input class="bare-input" data-truth-id="bare-second" placeholder="Second" />
+    <input class="bare-input" data-truth-id="bare-third" placeholder="Third" />
+  </div>
+
+  <!-- Dynamic IDs that change on reload -->
+  <div class="section">
+    <h2>Dynamic IDs (unstable)</h2>
+    <button id="" data-truth-id="dynamic-1" onclick="setStatus('Dynamic 1 clicked')">Dynamic Button 1</button>
+    <button id="" data-truth-id="dynamic-2" onclick="setStatus('Dynamic 2 clicked')">Dynamic Button 2</button>
+  </div>
+
+  <div id="status" data-testid="ambiguous-status" data-truth-id="ambiguous-status" style="display:none"></div>
+
+  <script>
+    // Assign random IDs on load to simulate unstable IDs
+    document.querySelectorAll('.section:last-of-type button[id=""]').forEach((btn, i) => {
+      btn.id = 'btn_' + Math.random().toString(36).slice(2, 8) + '_' + i;
+    });
+
+    function setStatus(msg) {
+      const el = document.getElementById('status');
+      el.textContent = msg;
+      el.style.display = 'block';
+    }
+  </script>
+</body>
+</html>
