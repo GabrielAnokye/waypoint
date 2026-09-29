@@ -2,14 +2,23 @@ import { buildRunnerServer } from './app.js';
 import { createPlaywrightLauncher } from './core/playwright-launcher.js';
 import { noopBrowserLauncher, type BrowserLauncher } from './core/executor.js';
 import { resolveRunnerEnv } from './env.js';
+import { openWaypointDatabase } from '@waypoint/db';
+import {
+  createRuntimePaths,
+  ensureRuntimeDirectories
+} from '@waypoint/db/runtime-paths';
 
 const env = resolveRunnerEnv();
 
 /**
- * The server's own default is the no-op launcher, which keeps unit and
- * integration tests hermetic. The real process is where a browser gets wired
- * in, so nothing in the test suite ever launches Chromium by accident.
+ * The server's own defaults are in-memory database and no-op launcher,
+ * which keeps unit and integration tests hermetic. The real process is
+ * where the file-backed database and browser get wired in, so nothing
+ * in the test suite accidentally persists data or launches Chromium.
  */
+const paths = ensureRuntimeDirectories(createRuntimePaths());
+const database = openWaypointDatabase(paths.databaseFile);
+
 const launcher: BrowserLauncher =
   env.BROWSER_ENGINE === 'chromium'
     ? createPlaywrightLauncher({
@@ -19,7 +28,10 @@ const launcher: BrowserLauncher =
       })
     : noopBrowserLauncher;
 
-const { app } = buildRunnerServer(env, { browserLauncher: launcher });
+const { app } = buildRunnerServer(env, {
+  repository: database.repository,
+  browserLauncher: launcher
+});
 
 async function shutdown(signal: string): Promise<void> {
   app.log?.info?.({ signal }, 'Shutting down.');
@@ -28,6 +40,7 @@ async function shutdown(signal: string): Promise<void> {
   } finally {
     // Release the browser, otherwise a killed runner leaves Chromium behind.
     await launcher.dispose?.();
+    database.close();
   }
   process.exit(0);
 }
@@ -43,10 +56,12 @@ try {
   });
   console.info(
     `[waypoint] runner listening on http://${env.RUNNER_HOST}:${env.RUNNER_PORT} ` +
-      `(engine: ${env.BROWSER_ENGINE}, headless: ${env.BROWSER_HEADLESS})`
+      `(engine: ${env.BROWSER_ENGINE}, headless: ${env.BROWSER_HEADLESS}, ` +
+      `db: ${paths.databaseFile})`
   );
 } catch (error) {
   console.error(error);
   await launcher.dispose?.();
+  database.close();
   process.exitCode = 1;
 }

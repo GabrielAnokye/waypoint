@@ -1030,6 +1030,13 @@ export function openWaypointDatabase(filename = ':memory:'): WaypointDatabase {
 
   applyMigrations(db);
 
+  // WAL mode enables concurrent reads during writes — essential for the
+  // experiment harness writing run results while the UI reads them.
+  // :memory: databases don't benefit from WAL, so we skip it there.
+  if (filename !== ':memory:') {
+    db.exec('PRAGMA journal_mode = WAL');
+  }
+
   return {
     db,
     repository: new WaypointRepository(db),
