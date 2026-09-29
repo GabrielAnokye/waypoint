@@ -39,6 +39,17 @@ import { buildRunGraph } from './core/persist.js';
 import { RunRegistry } from './core/run-registry.js';
 import type { RunnerEnv } from './env.js';
 
+/**
+ * The server reads only its own listen and logging configuration. Browser
+ * engine settings belong to the process that wires a launcher in, so they are
+ * deliberately not part of this contract — callers injecting a launcher need
+ * not invent browser config the server would ignore.
+ */
+export type RunnerServerEnv = Pick<
+  RunnerEnv,
+  'RUNNER_HOST' | 'RUNNER_PORT' | 'LOG_LEVEL'
+>;
+
 export interface RunnerServer {
   app: FastifyInstance;
   runtimePaths: ReturnType<typeof createRuntimePaths>;
@@ -57,7 +68,7 @@ const RUNNER_VERSION = '0.1.0';
  * Builds the Fastify runner instance used by dev, test, and production entrypoints.
  */
 export function buildRunnerServer(
-  env: RunnerEnv,
+  env: RunnerServerEnv,
   overrides: RunnerOverrides = {}
 ): RunnerServer {
   const logger = createLogger({

@@ -3,12 +3,38 @@ import { z } from 'zod';
 
 loadDotEnv();
 
+/**
+ * Environment values arrive as strings, so `z.coerce.boolean()` is wrong here:
+ * it treats any non-empty string as true, making BROWSER_HEADLESS=false true.
+ */
+const BooleanFromEnv = (defaultValue: boolean) =>
+  z
+    .enum(['true', 'false', '1', '0'])
+    .default(defaultValue ? 'true' : 'false')
+    .transform((value) => value === 'true' || value === '1');
+
 const RunnerEnvSchema = z.object({
   RUNNER_HOST: z.string().default('127.0.0.1'),
   RUNNER_PORT: z.coerce.number().int().positive().default(3100),
   LOG_LEVEL: z
     .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
-    .default('info')
+    .default('info'),
+
+  /**
+   * Which engine executes steps. `chromium` drives a real browser through
+   * Playwright; `noop` simulates success for every step and is only useful for
+   * exercising orchestration without a browser.
+   *
+   * Experiment runs must use `chromium` — locator strategies cannot be measured
+   * against a simulator that always succeeds.
+   */
+  BROWSER_ENGINE: z.enum(['chromium', 'noop']).default('chromium'),
+  /** Headless by default: experiment batches run unattended. Set false to watch. */
+  BROWSER_HEADLESS: BooleanFromEnv(true),
+  /** Delay each action by this many ms. Useful for demos, not for measurement. */
+  BROWSER_SLOW_MO: z.coerce.number().int().nonnegative().default(0),
+  /** Keep the browser open this long after a run finishes, for inspection. */
+  BROWSER_KEEP_OPEN_MS: z.coerce.number().int().nonnegative().default(0)
 });
 
 export type RunnerEnv = z.infer<typeof RunnerEnvSchema>;
