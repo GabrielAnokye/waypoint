@@ -69,15 +69,31 @@ if (!win.__waypointRecorder__) {
   });
 
   // Notify the SW that the recorder script is loaded and ready for init.
-  try {
-    console.info('[Waypoint:recorder] Sending content-recorder-ready to SW.');
-    chrome.runtime.sendMessage(
-      { type: 'waypoint.content-recorder-ready' },
-      () => { void chrome.runtime.lastError; }
-    );
-  } catch {
-    // Extension context invalidated.
+  // Retry a few times because the first signal can arrive before the SW's
+  // message handler is fully registered or before the pending init state
+  // is set, causing the init handshake to silently fail.
+  let readyAttempts = 0;
+  const maxReadyAttempts = 4;
+  function sendReadySignal(): void {
+    if (win.__waypointRecorder__) return; // Already initialized
+    if (readyAttempts >= maxReadyAttempts) return;
+    readyAttempts++;
+    try {
+      console.info(`[Waypoint:recorder] Sending content-recorder-ready to SW (attempt ${readyAttempts}).`);
+      chrome.runtime.sendMessage(
+        { type: 'waypoint.content-recorder-ready' },
+        () => { void chrome.runtime.lastError; }
+      );
+    } catch {
+      // Extension context invalidated.
+      return;
+    }
+    // Retry after 150ms if init hasn't arrived yet
+    if (readyAttempts < maxReadyAttempts) {
+      setTimeout(sendReadySignal, 150);
+    }
   }
+  sendReadySignal();
 } else {
   console.info('[Waypoint:recorder] Already loaded, skipping re-init.');
 }

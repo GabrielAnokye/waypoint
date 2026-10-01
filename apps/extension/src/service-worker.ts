@@ -115,6 +115,21 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       if (activeTab?.id) {
         const tabId = String(activeTab.id);
         session!.tabIds.add(tabId);
+
+        // Capture the current page URL as an initial navigate event so the
+        // compiled workflow begins with a goto step. Without this, Playwright
+        // opens about:blank and every locator fails immediately.
+        if (activeTab.url && activeTab.url.startsWith('http')) {
+          session!.eventCounter++;
+          session!.events.push({
+            eventId: `evt_${session!.eventCounter}`,
+            type: 'navigate',
+            atMs: 0,
+            tabId,
+            url: activeTab.url
+          });
+        }
+
         try {
           pendingInitTabId = activeTab.id;
           pendingInitStartedAtMs = startedAtMs;
@@ -123,7 +138,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             target: { tabId: activeTab.id },
             files: ['scripts/content-recorder.js']
           });
-          console.info('[Waypoint] Content-recorder injected. Waiting for ready signal (fallback 150ms).');
+          console.info('[Waypoint] Content-recorder injected. Waiting for ready signal (fallback 500ms).');
           setTimeout(() => {
             if (pendingInitTabId === activeTab.id) {
               pendingInitTabId = null;
@@ -134,7 +149,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                 startedAtMs
               }, () => { void chrome.runtime.lastError; });
             }
-          }, 150);
+          }, 500);
         } catch (err) {
           console.error('[Waypoint] Could not inject recorder:', err);
         }
