@@ -1,7 +1,54 @@
 # Browser execution modes
 
-The runner can execute workflow steps three ways, selected with `BROWSER_ENGINE`.
-Only one of them produces data you can publish.
+The runner can execute workflow steps three ways. Only one of them produces data
+you can publish.
+
+## Choosing per run, from the side panel
+
+Each workflow has two run buttons:
+
+| Button | Engine | What it does |
+| --- | --- | --- |
+| **Run clean** | `isolated` | Fresh browser context every run, closed afterwards. Use this for experiment data. |
+| **Run in open browser** | `attached` | Reuses a browser that stays open between runs. Demo only. |
+
+**Run in open browser** opens a browser the first time you use it and then
+leaves it open, so later runs reuse the same window, page state carries over,
+and you can watch what happens instead of a window flashing past. No setup
+needed — just click it.
+
+It cannot drive the Chrome you browse with day to day. Attaching requires
+`--remote-debugging-port`, which only takes effect at launch, so an
+already-running Chrome cannot be opted in without quitting it entirely. Recent
+stable Chrome also refuses Playwright's attach handshake outright (see
+[Version compatibility](#version-compatibility)). The browser it opens is the
+Chrome for Testing build Playwright installs, on a persistent profile at
+`~/.waypoint/cdp-profile` — so a login or a prepared page survives between
+sessions.
+
+To open it yourself ahead of time, or to point it at a specific page:
+
+```bash
+pnpm chrome:debug                       # or
+pnpm chrome:debug http://localhost:8080/forms.html
+```
+
+`BROWSER_ENGINE` below still sets the process-wide default used by **Run clean**
+and by the API when a request names no engine.
+
+## Run isolation
+
+Each run begins by discarding the previous run's browsing context, so runs
+cannot inherit each other's cookies, storage, or open pages. The browser process
+itself stays alive between runs, because relaunching Chromium each time costs
+seconds and buys nothing — a new context is already a clean slate.
+
+This matters more than it sounds. Without it, results become order-dependent: a
+step that passes in run 5 only because run 4 left a session cookie behind tells
+you nothing about the locator strategy under test.
+
+Attached browsers are deliberately exempt. The user's tabs and session are not
+the runner's to clear, and a run in that mode is not isolated anyway.
 
 | Mode | What it does | Valid for experiment data |
 | --- | --- | --- |

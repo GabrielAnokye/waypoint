@@ -116,7 +116,15 @@ export const api = {
     ),
 
   // Runner — Runs
-  runWorkflow: (workflowId: string, opts?: { authProfileId?: string; debugMode?: boolean }) =>
+  runWorkflow: (
+    workflowId: string,
+    opts?: {
+      authProfileId?: string;
+      debugMode?: boolean;
+      /** `isolated` (default) starts clean; `attached` drives your open Chrome. */
+      engine?: 'isolated' | 'attached';
+    }
+  ) =>
     runnerFetch<{ runId: string; status: string }>(
       `/workflows/${workflowId}/run`,
       { method: 'POST', body: JSON.stringify(opts ?? {}) }

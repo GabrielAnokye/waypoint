@@ -15,6 +15,7 @@ import {
 
 import type { Locator, WorkflowStep } from '@waypoint/shared-types';
 
+import { ensureDebugBrowser } from './debug-browser.js';
 import type { BrowserLauncher, ExecuteStepContext, StepExecutionResult } from './executor.js';
 import {
   resolveLocator,
@@ -161,15 +162,39 @@ export class PlaywrightBrowserLauncher implements BrowserLauncher {
    * page carries whatever state the previous run or the user left behind.
    */
   private async attachOverCdp(endpoint: string): Promise<BrowserContext> {
+    // Start a debuggable browser if none is listening. The flag it needs only
+    // applies at launch, so there is no way to opt an already-open Chrome in;
+    // launching one here is what makes "run in my browser" a single click
+    // rather than a prerequisite the user has to remember.
+    try {
+      const launched = await ensureDebugBrowser({ endpoint });
+      if (launched) {
+        console.info(
+          `[waypoint] Opened a browser at ${endpoint}. It stays open between ` +
+            'runs, so page state carries over.'
+        );
+      }
+    } catch (error) {
+      throw new Error(
+        error instanceof Error ? error.message : String(error)
+      );
+    }
+
     try {
       this.browser = await chromium.connectOverCDP(endpoint);
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
+      const refused = /ECONNREFUSED|retrieving websocket url/i.test(detail);
       throw new Error(
-        `Could not attach to Chrome at ${endpoint}: ${detail}\n` +
-          `Start Chrome with --remote-debugging-port, e.g.\n` +
-          `  /Applications/Google\\ Chrome.app/Contents/MacOS/Google\\ Chrome ` +
-          `--remote-debugging-port=9222 --user-data-dir=/tmp/waypoint-cdp-profile`
+        refused
+          ? `No debuggable Chrome is listening at ${endpoint}. ` +
+            `Start one with "pnpm chrome:debug", leave it open, then run again. ` +
+            `A Chrome opened normally cannot be attached to — it needs ` +
+            `--remote-debugging-port, which only applies at launch.`
+          : `Could not attach to Chrome at ${endpoint}: ${detail}\n` +
+            `If this says "Browser context management is not supported", the ` +
+            `browser is too new for Playwright to attach to. Use ` +
+            `"pnpm chrome:debug", which launches a compatible build.`
       );
     }
     this.attached = true;
@@ -589,6 +614,26 @@ export class PlaywrightBrowserLauncher implements BrowserLauncher {
     // Switch to the last remaining page
     const remaining = Array.from(this.pages.values());
     this.activePage = remaining.length > 0 ? remaining[remaining.length - 1]! : null;
+  }
+
+  /**
+   * Drop the browsing context so the next run builds a fresh one — new
+   * cookies, new storage, new page. The browser process itself is kept alive,
+   * because relaunching Chromium per run costs seconds and buys nothing: a new
+   * context is already a clean slate.
+   *
+   * Attached browsers are left alone. The user's tabs and session are not ours
+   * to clear, and a run in that mode is explicitly not isolated anyway.
+   */
+  async resetForRun(): Promise<void> {
+    if (this.attached) return;
+    if (this.context) {
+      try { await this.context.close(); } catch { /* already gone */ }
+      this.context = null;
+    }
+    this.pages.clear();
+    this.activePage = null;
+    this.tabAliasCounter = 0;
   }
 
   async dispose(): Promise<void> {

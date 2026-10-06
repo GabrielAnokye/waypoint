@@ -25,6 +25,7 @@ import {
   redactObject,
   type AuthProfileStatus,
   type HealthResponse,
+  type RunEngine,
   type RunSummary,
   type Schedule,
   type Workflow
@@ -60,6 +61,14 @@ export interface RunnerServer {
 export interface RunnerOverrides {
   repository?: WaypointRepository;
   browserLauncher?: BrowserLauncher;
+  /**
+   * Launcher used when a run asks for `engine: 'attached'`. Supplied by the
+   * process entry point; absent in tests, where requesting it is rejected
+   * rather than silently falling back to the isolated launcher — a run that
+   * quietly used a different browser than asked for would be worse than an
+   * error.
+   */
+  attachedBrowserLauncher?: BrowserLauncher;
 }
 
 const RUNNER_VERSION = '0.1.0';
@@ -81,7 +90,14 @@ export function buildRunnerServer(
   const repository =
     overrides.repository ?? openWaypointDatabase(':memory:').repository;
   const launcher = overrides.browserLauncher ?? noopBrowserLauncher;
+  const attachedLauncher = overrides.attachedBrowserLauncher;
   const registry = new RunRegistry();
+
+  /** Pick the launcher a run asked for; `isolated` is the default. */
+  function resolveLauncher(engine?: RunEngine): BrowserLauncher | null {
+    if (engine === 'attached') return attachedLauncher ?? null;
+    return launcher;
+  }
 
   // Track the most recently completed run for /status.
   let lastRun: RunSummary | undefined;
@@ -172,6 +188,21 @@ export function buildRunnerServer(
       return reply.code(404).send({ error: 'workflow_version_not_found' });
     }
 
+    const runLauncher = resolveLauncher(parsed.data.engine);
+    if (!runLauncher) {
+      return reply.code(409).send({
+        error: 'engine_unavailable',
+        message:
+          'This runner has no attached browser configured. Start Chrome with ' +
+          '--remote-debugging-port and set BROWSER_CDP_ENDPOINT, or run with ' +
+          'the isolated engine.'
+      });
+    }
+
+    // Clear anything the previous run left in the browser. Without this, runs
+    // share cookies, storage and open pages, and results become order-dependent.
+    await runLauncher.resetForRun?.();
+
     const runId = `run_${randomUUID()}`;
     const entry = registry.register({
       runId,
@@ -192,7 +223,7 @@ export function buildRunnerServer(
             debugMode: parsed.data.debugMode
           }),
           signal: entry.abort.signal,
-          launcher
+          launcher: runLauncher
         });
         const graph = await buildRunGraph(workflow, events, {
           workflowVersionId: latest.id,

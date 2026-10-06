@@ -68,6 +68,7 @@ export default tseslint.config(
       'tests/**/*.{ts,tsx}',
       'apps/**/scripts/**/*.mjs',
       'apps/**/install/**/*.mjs',
+      'scripts/**/*.mjs',
       '**/*.config.{js,mjs,ts}',
       '*.config.{js,mjs,ts}'
     ],

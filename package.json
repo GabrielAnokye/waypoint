@@ -16,7 +16,8 @@
     "lint": "eslint .",
     "typecheck": "tsc -b --pretty false",
     "clean": "corepack pnpm -r clean && rimraf coverage playwright-report test-results",
-    "serve:fixtures": "npx -y serve tests/fixtures/demo-pages -l 8080 --no-clipboard"
+    "serve:fixtures": "npx -y serve tests/fixtures/demo-pages -l 8080 --no-clipboard",
+    "chrome:debug": "node scripts/chrome-debug.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.18.0",

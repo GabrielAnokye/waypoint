@@ -16,6 +16,7 @@ on and a published result that is quietly false.
 
 | Setting | Demo value | Required for collection | Why it invalidates data |
 | --- | --- | --- | --- |
+| Run button | **Run in open browser** | **Run clean** | The attached engine reuses a browser that deliberately keeps its state between runs, so run N sees whatever run N-1 left behind. Per-run, this is the easiest mistake to make, because both buttons sit side by side and both report success. |
 | `BROWSER_ENGINE` | `cdp` or `noop` | **`chromium`** | `cdp` inherits the attached browser's cookies, storage, scroll position and other extensions, so runs are not reproducible and a failure cannot be attributed to the mutation. `noop` never touches a page and reports success unconditionally. |
 | `BROWSER_HEADLESS` | `false` | `true` | Not strictly invalid, but a visible window is slower and subject to OS focus and window-size effects. Keep batches headless so viewport is deterministic. |
 | `BROWSER_SLOW_MO` | `300`–`400` | `0` | Inflates per-step latency, which is one of the dependent measures. Any timing result collected with slow motion on is meaningless. |
@@ -26,6 +27,16 @@ Recording source matters too. Record fixtures over `http://localhost:8080`
 engine will serve mutated variants over HTTP, and keeping record and playback on
 the same origin semantics removes a difference you would otherwise have to
 control for.
+
+### Fixed: runs used to share a browser
+
+Until recently `dispose()` ran only at process shutdown while the launcher
+cached its browsing context, so every run after the first inherited the
+previous run's cookies, storage and open pages. The isolation that justifies
+the `chromium` engine over `cdp` was not actually being delivered.
+
+Runs now reset the context before starting. Any data collected before that fix
+is order-dependent and should be discarded.
 
 ## 2. Known defects that must be fixed before collecting data
 

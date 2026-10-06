@@ -83,6 +83,118 @@ async function waitForRunStatus(
 }
 
 describe('runner workflows + runs', () => {
+  it('resets the launcher before each run so runs cannot inherit page state', async () => {
+    const repo = openWaypointDatabase(':memory:').repository;
+    const calls: string[] = [];
+    const launcher: BrowserLauncher = {
+      async executeStep() {
+        calls.push('step');
+      },
+      async resetForRun() {
+        calls.push('reset');
+      }
+    };
+    const r = buildRunnerServer(baseEnv, { repository: repo, browserLauncher: launcher });
+    await r.app.ready();
+    try {
+      const save = await r.app.inject({
+        method: 'POST',
+        url: '/recordings',
+        payload: sampleRecording
+      });
+      const { workflowId } = save.json() as { workflowId: string };
+
+      for (let i = 0; i < 2; i++) {
+        const start = await r.app.inject({
+          method: 'POST',
+          url: `/workflows/${workflowId}/run`,
+          payload: {}
+        });
+        await waitForRunStatus(r.app, (start.json() as { runId: string }).runId);
+      }
+
+      // A reset must precede the first step of every run, or run 2 would
+      // execute against whatever run 1 left in the browser.
+      expect(calls[0]).toBe('reset');
+      expect(calls.filter((c) => c === 'reset')).toHaveLength(2);
+      const secondReset = calls.lastIndexOf('reset');
+      expect(calls.slice(secondReset).filter((c) => c === 'step').length)
+        .toBeGreaterThan(0);
+    } finally {
+      await r.app.close();
+    }
+  });
+
+  it('rejects an attached run when no attached browser is configured', async () => {
+    const repo = openWaypointDatabase(':memory:').repository;
+    const launcher: BrowserLauncher = { async executeStep() {} };
+    const r = buildRunnerServer(baseEnv, { repository: repo, browserLauncher: launcher });
+    await r.app.ready();
+    try {
+      const save = await r.app.inject({
+        method: 'POST',
+        url: '/recordings',
+        payload: sampleRecording
+      });
+      const { workflowId } = save.json() as { workflowId: string };
+
+      const start = await r.app.inject({
+        method: 'POST',
+        url: `/workflows/${workflowId}/run`,
+        payload: { engine: 'attached' }
+      });
+
+      // Falling back to the isolated launcher would run somewhere the caller
+      // did not ask for, which is worse than refusing.
+      expect(start.statusCode).toBe(409);
+      expect((start.json() as { error: string }).error).toBe('engine_unavailable');
+    } finally {
+      await r.app.close();
+    }
+  });
+
+  it('routes an attached run to the attached launcher when one is configured', async () => {
+    const repo = openWaypointDatabase(':memory:').repository;
+    const used: string[] = [];
+    const isolated: BrowserLauncher = {
+      async executeStep() {
+        used.push('isolated');
+      }
+    };
+    const attached: BrowserLauncher = {
+      async executeStep() {
+        used.push('attached');
+      }
+    };
+    const r = buildRunnerServer(baseEnv, {
+      repository: repo,
+      browserLauncher: isolated,
+      attachedBrowserLauncher: attached
+    });
+    await r.app.ready();
+    try {
+      const save = await r.app.inject({
+        method: 'POST',
+        url: '/recordings',
+        payload: sampleRecording
+      });
+      const { workflowId } = save.json() as { workflowId: string };
+
+      const start = await r.app.inject({
+        method: 'POST',
+        url: `/workflows/${workflowId}/run`,
+        payload: { engine: 'attached' }
+      });
+      expect(start.statusCode).toBe(200);
+      await waitForRunStatus(r.app, (start.json() as { runId: string }).runId);
+
+      expect(used).toContain('attached');
+      expect(used).not.toContain('isolated');
+    } finally {
+      await r.app.close();
+    }
+  });
+
   it('compiles a recording, runs it with a stub launcher, and persists the run graph', async () => {
     const repo = openWaypointDatabase(':memory:').repository;
     const launcher: BrowserLauncher = { async executeStep() {} };

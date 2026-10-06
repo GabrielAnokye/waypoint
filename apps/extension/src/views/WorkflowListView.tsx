@@ -139,10 +139,17 @@ export function WorkflowListView() {
     }
   }
 
-  async function handleRun(workflowId: string) {
+  async function handleRun(
+    workflowId: string,
+    engine: 'isolated' | 'attached' = 'isolated'
+  ) {
     try {
-      const { runId } = await api.runWorkflow(workflowId);
-      setStatus('ready', `Run ${runId} started.`);
+      const { runId } = await api.runWorkflow(workflowId, { engine });
+      const where =
+        engine === 'attached'
+          ? 'in the open browser (demo only — not reproducible)'
+          : 'in a clean browser';
+      setStatus('ready', `Run ${runId} started ${where}.`);
       void fetchRuns();
     } catch (err) {
       setStatus('error', err instanceof Error ? err.message : 'Run failed.');
@@ -265,9 +272,17 @@ export function WorkflowListView() {
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                 <button
                   className="wp-button"
-                  onClick={() => void handleRun(id)}
+                  onClick={() => void handleRun(id, 'isolated')}
+                  title="Run in a clean browser that starts from scratch. Use this for experiment data."
                 >
-                  Run
+                  Run clean
+                </button>
+                <button
+                  className="wp-button wp-button--secondary"
+                  onClick={() => void handleRun(id, 'attached')}
+                  title="Reuse a browser that stays open between runs, so you can watch it and page state carries over. Opens one automatically the first time. Demo only — runs are not reproducible."
+                >
+                  Run in open browser
                 </button>
                 <button
                   className="wp-button"

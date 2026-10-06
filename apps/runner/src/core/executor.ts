@@ -41,6 +41,16 @@ export interface BrowserLauncher {
     step: WorkflowStep,
     ctx: ExecuteStepContext
   ): Promise<StepExecutionResult | void>;
+  /**
+   * Discard any page state carried over from a previous run, so the next run
+   * starts clean. Called before each run begins.
+   *
+   * Without this a launcher that caches its browser hands run N the cookies,
+   * storage and open pages that run N-1 left behind, and results become
+   * order-dependent — a failure can no longer be attributed to the page
+   * mutation under test.
+   */
+  resetForRun?(): Promise<void>;
   dispose?(): Promise<void>;
 }
 

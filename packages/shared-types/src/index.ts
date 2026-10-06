@@ -761,9 +761,23 @@ export const SaveRecordingResponseSchema = z.object({
 });
 
 /** POST /workflows/:id/run request and response shapes. */
+/**
+ * Which browser a run executes in.
+ *
+ * - `isolated` starts from a clean browser context every run, so two runs of
+ *   the same workflow cannot influence each other. Required for experiment
+ *   data, where a failure must be attributable to the page mutation and
+ *   nothing else.
+ * - `attached` drives a browser the user already has open. Convenient for
+ *   demonstrating against a page whose state was set up by hand, and unfit for
+ *   measurement for exactly that reason.
+ */
+export const RunEngineSchema = z.enum(['isolated', 'attached']);
+
 export const StartRunRequestSchema = z.object({
   authProfileId: EntityIdSchema.optional(),
-  debugMode: z.boolean().optional()
+  debugMode: z.boolean().optional(),
+  engine: RunEngineSchema.optional()
 });
 
 export const StartRunResponseSchema = z.object({
@@ -1201,6 +1215,7 @@ export type WorkflowSummary = z.infer<typeof WorkflowSummarySchema>;
 export type RunnerStatusResponse = z.infer<typeof RunnerStatusResponseSchema>;
 export type SaveRecordingResponse = z.infer<typeof SaveRecordingResponseSchema>;
 export type StartRunRequest = z.infer<typeof StartRunRequestSchema>;
+export type RunEngine = z.infer<typeof RunEngineSchema>;
 export type StartRunResponse = z.infer<typeof StartRunResponseSchema>;
 export type CancelRunResponse = z.infer<typeof CancelRunResponseSchema>;
 export type ListRunsResponse = z.infer<typeof ListRunsResponseSchema>;

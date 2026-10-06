@@ -125,6 +125,18 @@ body {
   background: #0a4b6e;
 }
 
+/*
+ * Demo-only actions. Visually quieter than the primary action so the
+ * reproducible path stays the obvious default.
+ */
+.wp-button--secondary {
+  background: #4a5a66;
+}
+
+.wp-button--secondary:hover {
+  background: #37444e;
+}
+
 .wp-button--danger {
   background: #8a1c26;
 }

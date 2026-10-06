@@ -48,9 +48,22 @@ function createLauncher(): BrowserLauncher {
 
 const launcher: BrowserLauncher = createLauncher();
 
+/**
+ * The attached launcher is always available alongside the default one, so the
+ * UI can offer "run in my browser" without restarting the runner in a
+ * different mode. Constructing it is free — it does not connect to anything
+ * until a run actually asks for it.
+ */
+const attachedLauncher = createPlaywrightLauncher({
+  slowMo: env.BROWSER_SLOW_MO,
+  keepOpenMs: 0,
+  cdpEndpoint: env.BROWSER_CDP_ENDPOINT
+});
+
 const { app } = buildRunnerServer(env, {
   repository: database.repository,
-  browserLauncher: launcher
+  browserLauncher: launcher,
+  attachedBrowserLauncher: attachedLauncher
 });
 
 async function shutdown(signal: string): Promise<void> {
@@ -60,6 +73,7 @@ async function shutdown(signal: string): Promise<void> {
   } finally {
     // Release the browser, otherwise a killed runner leaves Chromium behind.
     await launcher.dispose?.();
+    await attachedLauncher.dispose?.();
     database.close();
   }
   process.exit(0);
@@ -82,6 +96,7 @@ try {
 } catch (error) {
   console.error(error);
   await launcher.dispose?.();
+  await attachedLauncher.dispose?.();
   database.close();
   process.exitCode = 1;
 }
