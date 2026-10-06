@@ -3,12 +3,18 @@
   "compilerOptions": {
     "composite": true,
     "rootDir": "src",
-    "outDir": "dist/scripts",
+    "outDir": "dist-types/scripts",
     "declaration": true,
+    "emitDeclarationOnly": true,
     "types": ["chrome"],
-    "tsBuildInfoFile": "dist/scripts/.tsbuildinfo"
+    "tsBuildInfoFile": "dist-types/scripts/.tsbuildinfo"
   },
-  "include": ["src/content-script.ts", "src/service-worker.ts", "src/scheduler.ts"],
+  "include": [
+    "src/content-script.ts",
+    "src/service-worker.ts",
+    "src/scheduler.ts",
+    "src/recordable-url.ts"
+  ],
   "references": [
     { "path": "../../packages/shared-types" }
   ]

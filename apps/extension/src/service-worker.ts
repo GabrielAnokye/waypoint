@@ -1,4 +1,5 @@
 import { handleAlarm, rehydrateAlarms } from './scheduler.js';
+import { isRecordableUrl } from './recordable-url.js';
 
 chrome.runtime.onInstalled.addListener(() => {
   console.info('[Waypoint] extension scaffold installed.');
@@ -119,7 +120,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         // Capture the current page URL as an initial navigate event so the
         // compiled workflow begins with a goto step. Without this, Playwright
         // opens about:blank and every locator fails immediately.
-        if (activeTab.url && activeTab.url.startsWith('http')) {
+        if (isRecordableUrl(activeTab.url)) {
           session!.eventCounter++;
           session!.events.push({
             eventId: `evt_${session!.eventCounter}`,
