@@ -50,8 +50,16 @@ export interface BrowserLauncher {
    * order-dependent — a failure can no longer be attributed to the page
    * mutation under test.
    */
-  resetForRun?(): Promise<void>;
+  resetForRun?(options?: RunTargetOptions): Promise<void>;
   dispose?(): Promise<void>;
+}
+
+/** Where an attached run should play. Launchers that start clean ignore it. */
+export interface RunTargetOptions {
+  /** The tab the user asked to replay in (active tab beside the side panel). */
+  targetUrl?: string;
+  /** The URL the workflow was recorded on, as a fallback when no target is given. */
+  recordedUrl?: string;
 }
 
 /** Default launcher: a no-op simulator that succeeds for every step. */

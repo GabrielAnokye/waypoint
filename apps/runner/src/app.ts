@@ -99,6 +99,15 @@ export function buildRunnerServer(
     return launcher;
   }
 
+  /**
+   * Which run currently owns each launcher. A launcher drives one browser, so
+   * two runs on it at once would share a page and the second run's reset
+   * would close the first run's context mid-flight. Refusing is better than
+   * either: a second click while a run is in progress gets a clear answer
+   * instead of silently breaking the run that is already going.
+   */
+  const busyLaunchers = new Map<BrowserLauncher, string>();
+
   // Track the most recently completed run for /status.
   let lastRun: RunSummary | undefined;
 
@@ -199,11 +208,33 @@ export function buildRunnerServer(
       });
     }
 
-    // Clear anything the previous run left in the browser. Without this, runs
-    // share cookies, storage and open pages, and results become order-dependent.
-    await runLauncher.resetForRun?.();
+    const activeRunId = busyLaunchers.get(runLauncher);
+    if (activeRunId) {
+      return reply.code(409).send({
+        error: 'engine_busy',
+        runId: activeRunId,
+        message:
+          `Run ${activeRunId} is still in progress in that browser. Wait for ` +
+          'it to finish or cancel it before starting another.'
+      });
+    }
 
     const runId = `run_${randomUUID()}`;
+    busyLaunchers.set(runLauncher, runId);
+
+    // Clear anything the previous run left in the browser. Without this, runs
+    // share cookies, storage and open pages, and results become order-dependent.
+    const firstGoto = workflow.steps.find((s) => s.type === 'goto');
+    try {
+      await runLauncher.resetForRun?.({
+        ...(parsed.data.targetUrl !== undefined && { targetUrl: parsed.data.targetUrl }),
+        ...(firstGoto?.type === 'goto' && { recordedUrl: firstGoto.url })
+      });
+    } catch (err) {
+      busyLaunchers.delete(runLauncher);
+      throw err;
+    }
+
     const entry = registry.register({
       runId,
       workflowId,
@@ -248,6 +279,7 @@ export function buildRunnerServer(
         logger.error({ err, runId }, 'run execution crashed');
         registry.setStatus(runId, 'failed');
       } finally {
+        busyLaunchers.delete(runLauncher);
         // Keep the entry for status visibility — purge after a short delay.
         setTimeout(() => registry.remove(runId), 60_000).unref?.();
       }
@@ -493,7 +525,19 @@ export function buildRunnerServer(
     const latest = versionRows[0];
     if (!latest) return reply.code(404).send({ error: 'workflow_version_not_found' });
 
+    const activeRunId = busyLaunchers.get(launcher);
+    if (activeRunId) {
+      return reply.code(409).send({
+        error: 'engine_busy',
+        runId: activeRunId,
+        message:
+          `Run ${activeRunId} is still in progress in that browser. Wait for ` +
+          'it to finish or cancel it before starting another.'
+      });
+    }
+
     const runId = `run_${randomUUID()}`;
+    busyLaunchers.set(launcher, runId);
     const entry = registry.register({
       runId,
       workflowId,
@@ -532,6 +576,7 @@ export function buildRunnerServer(
         logger.error({ err, runId }, 'run-from execution crashed');
         registry.setStatus(runId, 'failed');
       } finally {
+        busyLaunchers.delete(launcher);
         setTimeout(() => registry.remove(runId), 60_000).unref?.();
       }
     })();

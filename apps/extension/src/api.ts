@@ -123,6 +123,8 @@ export const api = {
       debugMode?: boolean;
       /** `isolated` (default) starts clean; `attached` drives your open Chrome. */
       engine?: 'isolated' | 'attached';
+      /** For `attached`: URL of the tab to replay in (the active tab). */
+      targetUrl?: string;
     }
   ) =>
     runnerFetch<{ runId: string; status: string }>(

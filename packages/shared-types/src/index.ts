@@ -777,7 +777,12 @@ export const RunEngineSchema = z.enum(['isolated', 'attached']);
 export const StartRunRequestSchema = z.object({
   authProfileId: EntityIdSchema.optional(),
   debugMode: z.boolean().optional(),
-  engine: RunEngineSchema.optional()
+  engine: RunEngineSchema.optional(),
+  /**
+   * URL of the tab an `attached` run should replay in — the tab the user is
+   * looking at next to the side panel. Ignored by the isolated engine.
+   */
+  targetUrl: z.string().url().optional()
 });
 
 export const StartRunResponseSchema = z.object({

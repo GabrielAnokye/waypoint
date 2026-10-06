@@ -195,6 +195,49 @@ describe('runner workflows + runs', () => {
     }
   });
 
+  it('refuses a second run on a launcher that is still busy, then accepts one after', async () => {
+    const repo = openWaypointDatabase(':memory:').repository;
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const launcher: BrowserLauncher = {
+      async executeStep() {
+        await gate;
+      }
+    };
+    const r = buildRunnerServer(baseEnv, { repository: repo, browserLauncher: launcher });
+    await r.app.ready();
+    try {
+      const save = await r.app.inject({
+        method: 'POST',
+        url: '/recordings',
+        payload: sampleRecording
+      });
+      const { workflowId } = save.json() as { workflowId: string };
+      const url = `/workflows/${workflowId}/run`;
+
+      const first = await r.app.inject({ method: 'POST', url, payload: {} });
+      expect(first.statusCode).toBe(200);
+      const firstRunId = (first.json() as { runId: string }).runId;
+
+      // A second click while the first run is mid-flight must not be allowed
+      // to reset the browser out from under it.
+      const second = await r.app.inject({ method: 'POST', url, payload: {} });
+      expect(second.statusCode).toBe(409);
+      const body = second.json() as { error: string; runId: string };
+      expect(body.error).toBe('engine_busy');
+      expect(body.runId).toBe(firstRunId);
+
+      release();
+      await waitForRunStatus(r.app, firstRunId);
+
+      const third = await r.app.inject({ method: 'POST', url, payload: {} });
+      expect(third.statusCode).toBe(200);
+      await waitForRunStatus(r.app, (third.json() as { runId: string }).runId);
+    } finally {
+      await r.app.close();
+    }
+  });
+
   it('compiles a recording, runs it with a stub launcher, and persists the run graph', async () => {
     const repo = openWaypointDatabase(':memory:').repository;
     const launcher: BrowserLauncher = { async executeStep() {} };

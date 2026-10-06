@@ -12,10 +12,18 @@ Each workflow has two run buttons:
 | **Run clean** | `isolated` | Fresh browser context every run, closed afterwards. Use this for experiment data. |
 | **Run in open browser** | `attached` | Reuses a browser that stays open between runs. Demo only. |
 
-**Run in open browser** opens a browser the first time you use it and then
-leaves it open, so later runs reuse the same window, page state carries over,
-and you can watch what happens instead of a window flashing past. No setup
-needed — just click it.
+**Run in open browser** replays in the tab you are looking at — the active tab
+beside the side panel. The side panel sends that tab's URL with the run, and
+the runner picks the matching tab (falling back to the tab on the recorded
+URL, then any real tab); it never chooses the side panel, DevTools or a
+`chrome://` page, and opens a tab only if the browser has none. Nothing is
+closed or reset first, so page state carries over and you can watch the steps
+land in place. The browser is opened the first time you use it and then left
+open. No setup needed — just click it.
+
+For this to work the side panel must be open in the debuggable browser (the
+Chrome for Testing instance on port 9222). A side panel in your everyday Chrome
+cannot be reached: see below.
 
 It cannot drive the Chrome you browse with day to day. Attaching requires
 `--remote-debugging-port`, which only takes effect at launch, so an
@@ -32,6 +40,19 @@ To open it yourself ahead of time, or to point it at a specific page:
 pnpm chrome:debug                       # or
 pnpm chrome:debug http://localhost:8080/forms.html
 ```
+
+**Closing its window is not the same as quitting it.** On macOS Chrome keeps
+running after its last window closes, still answering on the debug port, but
+with no window it has no browser context to attach to and rejects the attach
+with `Browser context management is not supported`. The runner handles this:
+before attaching it checks the browser has a page and opens one through the
+debug port if not, which brings the window (and, on macOS, its previous tabs)
+back. If you want a genuinely fresh browser, quit it with ⌘Q and the next run
+starts a new one.
+
+Only one run can use the open browser at a time. Starting another while one is
+in progress is refused with `409 engine_busy` rather than letting the second
+run reset the page under the first.
 
 `BROWSER_ENGINE` below still sets the process-wide default used by **Run clean**
 and by the API when a request names no engine.
@@ -149,9 +170,13 @@ installs). Attaching to **Chrome 154 stable failed** with:
 Protocol error (Browser.setDownloadBehavior): Browser context management is not supported
 ```
 
-This is a handshake incompatibility between Playwright's `connectOverCDP` and
-that Chrome build, not a configuration error — the endpoint connects and is then
-rejected. If you hit it, attach to the Playwright-installed browser instead:
+Chrome returns this whenever it has no default browser context to hand out.
+Chrome for Testing 153 produces the exact same message when all its windows are
+closed (see above) — so before blaming the build, check that the browser has a
+window open. If a window is open and it still fails, it is a handshake
+incompatibility between Playwright's `connectOverCDP` and that Chrome build, not
+a configuration error — the endpoint connects and is then rejected. In that case
+attach to the Playwright-installed browser instead:
 
 ```bash
 ~/Library/Caches/ms-playwright/chromium-1243/chrome-mac-arm64/"Google Chrome for Testing.app"/Contents/MacOS/"Google Chrome for Testing" \

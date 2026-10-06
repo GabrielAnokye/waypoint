@@ -3,6 +3,16 @@ import { useCallback, useEffect, useRef } from 'react';
 import { api } from '../api';
 import { useExtensionStore } from '../store';
 
+/** URL of the active tab in this side panel's window, if the API allows. */
+async function activeTabUrl(): Promise<string | undefined> {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    return tab?.url || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export function WorkflowListView() {
   const {
     workflows, workflowOrder, setWorkflows, updateWorkflowInStore, removeWorkflow,
@@ -139,18 +149,65 @@ export function WorkflowListView() {
     }
   }
 
+  // Runs only appear in /runs once they finish, so a single fetch right after
+  // starting one shows nothing. Poll until the run shows up (or give up), so
+  // the result appears on its own instead of on the next click.
+  const runWatchRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  useEffect(() => () => {
+    if (runWatchRef.current) clearInterval(runWatchRef.current);
+  }, []);
+
+  function watchRun(runId: string, where: string) {
+    if (runWatchRef.current) clearInterval(runWatchRef.current);
+    const deadline = Date.now() + 5 * 60_000;
+    runWatchRef.current = setInterval(async () => {
+      try {
+        const { runs: list } = await api.listRuns();
+        const done = list.find((r) => r.id === runId);
+        if (done) {
+          setRuns(list);
+          setStatus(
+            done.status === 'succeeded' ? 'ready' : 'error',
+            done.status === 'succeeded'
+              ? `Run finished ${where}.`
+              : done.errorMessage ?? `Run ${done.status}.`
+          );
+        }
+        if (done || Date.now() > deadline) {
+          if (runWatchRef.current) clearInterval(runWatchRef.current);
+          runWatchRef.current = null;
+        }
+      } catch {
+        /* runner may be busy starting a browser — keep polling */
+      }
+    }, 1000);
+  }
+
   async function handleRun(
     workflowId: string,
     engine: 'isolated' | 'attached' = 'isolated'
   ) {
     try {
-      const { runId } = await api.runWorkflow(workflowId, { engine });
       const where =
         engine === 'attached'
           ? 'in the open browser (demo only — not reproducible)'
           : 'in a clean browser';
-      setStatus('ready', `Run ${runId} started ${where}.`);
-      void fetchRuns();
+      setStatus('ready', `Starting run ${where}...`);
+      // Attached runs replay in the tab the user is looking at — the one next
+      // to this side panel — so tell the runner which tab that is.
+      const targetUrl = engine === 'attached' ? await activeTabUrl() : undefined;
+      const { runId } = await api.runWorkflow(workflowId, {
+        engine,
+        ...(targetUrl && { targetUrl })
+      });
+      setStatus(
+        'ready',
+        `Run ${runId} running ${where}.` +
+          (engine === 'attached'
+            ? ' The first run opens Chrome, which can take a few seconds.'
+            : '')
+      );
+      watchRun(runId, where);
     } catch (err) {
       setStatus('error', err instanceof Error ? err.message : 'Run failed.');
     }
