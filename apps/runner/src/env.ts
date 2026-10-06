@@ -21,14 +21,24 @@ const RunnerEnvSchema = z.object({
     .default('info'),
 
   /**
-   * Which engine executes steps. `chromium` drives a real browser through
-   * Playwright; `noop` simulates success for every step and is only useful for
-   * exercising orchestration without a browser.
+   * Which engine executes steps.
+   *
+   * - `chromium` launches a fresh Playwright browser per run. The only mode
+   *   valid for collecting experiment data, because every run starts from
+   *   identical state.
+   * - `cdp` attaches to a Chrome you already have open (see
+   *   BROWSER_CDP_ENDPOINT) and drives its current tab. Demo only: it inherits
+   *   whatever state that browser carries, so runs are not reproducible.
+   * - `noop` simulates success for every step, for exercising orchestration
+   *   without a browser.
    *
    * Experiment runs must use `chromium` — locator strategies cannot be measured
-   * against a simulator that always succeeds.
+   * against a simulator that always succeeds, nor against a page whose state
+   * varies between runs. See docs/EXPERIMENT-INTEGRITY.md.
    */
-  BROWSER_ENGINE: z.enum(['chromium', 'noop']).default('chromium'),
+  BROWSER_ENGINE: z.enum(['chromium', 'cdp', 'noop']).default('chromium'),
+  /** CDP endpoint used when BROWSER_ENGINE=cdp. */
+  BROWSER_CDP_ENDPOINT: z.string().default('http://localhost:9222'),
   /** Headless by default: experiment batches run unattended. Set false to watch. */
   BROWSER_HEADLESS: BooleanFromEnv(true),
   /** Delay each action by this many ms. Useful for demos, not for measurement. */

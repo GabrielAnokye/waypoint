@@ -82,6 +82,17 @@ export interface PlaywrightLauncherOptions {
   profileDirectory?: string;
   /** How many ms to keep the browser open after the run finishes. Default: 5000. */
   keepOpenMs?: number;
+  /**
+   * CDP endpoint of an already-running Chrome to attach to, e.g.
+   * `http://localhost:9222`. When set, the launcher drives that browser's
+   * existing tab instead of launching its own.
+   *
+   * Demo and debugging only. Attaching inherits whatever state that browser
+   * already has — cookies, storage, scroll position, other extensions
+   * mutating the DOM — so runs are not reproducible and must not be used to
+   * collect experiment data. See docs/EXPERIMENT-INTEGRITY.md.
+   */
+  cdpEndpoint?: string;
 }
 
 export class PlaywrightBrowserLauncher implements BrowserLauncher {
@@ -91,6 +102,12 @@ export class PlaywrightBrowserLauncher implements BrowserLauncher {
   private activePage: Page | null = null;
   private options: PlaywrightLauncherOptions;
   private tabAliasCounter = 0;
+  /**
+   * True when we attached to a browser someone else started. Ownership
+   * matters on teardown: closing a browser we did not launch would close the
+   * user's real Chrome out from under them.
+   */
+  private attached = false;
 
   constructor(options: PlaywrightLauncherOptions = {}) {
     this.options = {
@@ -102,6 +119,10 @@ export class PlaywrightBrowserLauncher implements BrowserLauncher {
 
   private async ensureBrowser(): Promise<BrowserContext> {
     if (this.context) return this.context;
+
+    if (this.options.cdpEndpoint) {
+      return this.attachOverCdp(this.options.cdpEndpoint);
+    }
 
     const launchOptions: Parameters<typeof chromium.launch>[0] = {};
     if (this.options.headless !== undefined) launchOptions.headless = this.options.headless;
@@ -123,6 +144,45 @@ export class PlaywrightBrowserLauncher implements BrowserLauncher {
 
     this.context = await this.browser.newContext(contextOptions);
     const page = await this.context.newPage();
+    const alias = `tab_${this.tabAliasCounter++}`;
+    this.pages.set(alias, page);
+    this.activePage = page;
+
+    return this.context;
+  }
+
+  /**
+   * Attach to a Chrome already running with --remote-debugging-port and take
+   * over its current tab, rather than launching a browser of our own.
+   *
+   * Unlike the launch path this reuses the existing context and page, so the
+   * run acts on the window the user is already looking at. That is the point
+   * of the mode, and also exactly why it is unfit for data collection: the
+   * page carries whatever state the previous run or the user left behind.
+   */
+  private async attachOverCdp(endpoint: string): Promise<BrowserContext> {
+    try {
+      this.browser = await chromium.connectOverCDP(endpoint);
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      throw new Error(
+        `Could not attach to Chrome at ${endpoint}: ${detail}\n` +
+          `Start Chrome with --remote-debugging-port, e.g.\n` +
+          `  /Applications/Google\\ Chrome.app/Contents/MacOS/Google\\ Chrome ` +
+          `--remote-debugging-port=9222 --user-data-dir=/tmp/waypoint-cdp-profile`
+      );
+    }
+    this.attached = true;
+
+    // An attached browser already has a context and at least one tab; adopt
+    // them instead of creating new ones, otherwise we would open a fresh
+    // window and defeat the purpose of attaching.
+    const existingContext = this.browser.contexts()[0];
+    this.context = existingContext ?? (await this.browser.newContext());
+
+    const existingPage = this.context.pages()[0];
+    const page = existingPage ?? (await this.context.newPage());
+
     const alias = `tab_${this.tabAliasCounter++}`;
     this.pages.set(alias, page);
     this.activePage = page;
@@ -534,8 +594,23 @@ export class PlaywrightBrowserLauncher implements BrowserLauncher {
   async dispose(): Promise<void> {
     // Keep browser open briefly so the user can see the final state
     const keepMs = this.options.keepOpenMs ?? 5000;
-    if (keepMs > 0 && this.browser) {
+    if (keepMs > 0 && this.browser && !this.attached) {
       await new Promise((resolve) => setTimeout(resolve, keepMs));
+    }
+
+    if (this.attached) {
+      // We did not start this browser, so we do not get to close it. Closing
+      // the context would discard the user's real tabs. Drop our references
+      // and disconnect, leaving the window exactly as we found it.
+      if (this.browser) {
+        try { await this.browser.close(); } catch { /* disconnects, does not kill Chrome */ }
+        this.browser = null;
+      }
+      this.context = null;
+      this.pages.clear();
+      this.activePage = null;
+      this.attached = false;
+      return;
     }
 
     if (this.context) {

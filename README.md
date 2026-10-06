@@ -45,6 +45,13 @@ bind to what the element *means* to a user rather than where it sits in the tree
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for runtime boundaries and
 [docs/RESEARCH-PLAN.md](docs/RESEARCH-PLAN.md) for the experimental design.
 
+Running workflows: [docs/BROWSER-MODES.md](docs/BROWSER-MODES.md) covers the
+three execution modes and how to watch a run instead of it flashing past.
+Before collecting any experiment data, work through
+[docs/EXPERIMENT-INTEGRITY.md](docs/EXPERIMENT-INTEGRITY.md) — it registers the
+demo-only settings and known defects that would otherwise produce results that
+look fine and are wrong.
+
 ## Getting Started
 
 Requires Node >= 22 and pnpm >= 9.

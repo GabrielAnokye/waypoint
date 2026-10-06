@@ -19,14 +19,34 @@ const env = resolveRunnerEnv();
 const paths = ensureRuntimeDirectories(createRuntimePaths());
 const database = openWaypointDatabase(paths.databaseFile);
 
-const launcher: BrowserLauncher =
-  env.BROWSER_ENGINE === 'chromium'
-    ? createPlaywrightLauncher({
+function createLauncher(): BrowserLauncher {
+  switch (env.BROWSER_ENGINE) {
+    case 'chromium':
+      return createPlaywrightLauncher({
         headless: env.BROWSER_HEADLESS,
         slowMo: env.BROWSER_SLOW_MO,
         keepOpenMs: env.BROWSER_KEEP_OPEN_MS
-      })
-    : noopBrowserLauncher;
+      });
+    case 'cdp':
+      // Loud on purpose. Data collected in this mode is not reproducible, and
+      // the failure is silent otherwise — runs still report success.
+      console.warn(
+        '[waypoint] BROWSER_ENGINE=cdp — attaching to an existing Chrome at ' +
+          `${env.BROWSER_CDP_ENDPOINT}. Runs inherit that browser's state and ` +
+          'are NOT reproducible. Demo only; do not collect experiment data in ' +
+          'this mode. See docs/EXPERIMENT-INTEGRITY.md.'
+      );
+      return createPlaywrightLauncher({
+        slowMo: env.BROWSER_SLOW_MO,
+        keepOpenMs: env.BROWSER_KEEP_OPEN_MS,
+        cdpEndpoint: env.BROWSER_CDP_ENDPOINT
+      });
+    case 'noop':
+      return noopBrowserLauncher;
+  }
+}
+
+const launcher: BrowserLauncher = createLauncher();
 
 const { app } = buildRunnerServer(env, {
   repository: database.repository,
