@@ -281,6 +281,53 @@ describe('runner workflows + runs', () => {
     }
   });
 
+  it('stamps browser parameters (headless, slowMo, contextIsolation) into runs table metadata', async () => {
+    const repo = openWaypointDatabase(':memory:').repository;
+    const launcher: BrowserLauncher = {
+      async executeStep() {},
+      getExecutionConditions() {
+        return {
+          headless: true,
+          slowMo: 100,
+          contextIsolation: 'isolated',
+          browserEngine: 'chromium'
+        };
+      }
+    };
+    const r = buildRunnerServer(baseEnv, {
+      repository: repo,
+      browserLauncher: launcher
+    });
+    await r.app.ready();
+    try {
+      const save = await r.app.inject({
+        method: 'POST',
+        url: '/recordings',
+        payload: sampleRecording
+      });
+      const { workflowId } = save.json() as { workflowId: string };
+
+      const start = await r.app.inject({
+        method: 'POST',
+        url: `/workflows/${workflowId}/run`,
+        payload: {}
+      });
+      const { runId } = start.json() as { runId: string };
+
+      const graph = (await waitForRunStatus(r.app, runId)) as {
+        run: { status: string; metadata: Record<string, unknown> };
+      };
+      expect(graph.run.metadata).toEqual({
+        headless: true,
+        slowMo: 100,
+        contextIsolation: 'isolated',
+        browserEngine: 'chromium'
+      });
+    } finally {
+      await r.app.close();
+    }
+  });
+
   it('marks a run as failed when the launcher throws on a step', async () => {
     const repo = openWaypointDatabase(':memory:').repository;
     let calls = 0;

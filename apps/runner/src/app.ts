@@ -256,11 +256,23 @@ export function buildRunnerServer(
           signal: entry.abort.signal,
           launcher: runLauncher
         });
+        const executionConditions =
+          typeof runLauncher.getExecutionConditions === 'function'
+            ? runLauncher.getExecutionConditions()
+            : {
+                headless: false,
+                slowMo: 0,
+                contextIsolation: parsed.data.engine === 'attached' ? 'attached' : 'isolated',
+                browserEngine: parsed.data.engine === 'attached' ? 'cdp' : 'chromium'
+              };
         const graph = await buildRunGraph(workflow, events, {
           workflowVersionId: latest.id,
           ...(parsed.data.authProfileId !== undefined && {
             authProfileId: parsed.data.authProfileId
-          })
+          }),
+          metadata: {
+            ...executionConditions
+          }
         });
         repository.saveRunGraph(graph);
         registry.setStatus(runId, graph.run.status);
@@ -555,9 +567,21 @@ export function buildRunnerServer(
           signal: entry.abort.signal,
           launcher
         });
+        const executionConditions =
+          typeof launcher.getExecutionConditions === 'function'
+            ? launcher.getExecutionConditions()
+            : {
+                headless: false,
+                slowMo: 0,
+                contextIsolation: 'isolated' as const,
+                browserEngine: 'chromium'
+              };
         const graph = await buildRunGraph(workflow, events, {
           workflowVersionId: latest.id,
-          ...(parsed.data.authProfileId !== undefined && { authProfileId: parsed.data.authProfileId })
+          ...(parsed.data.authProfileId !== undefined && { authProfileId: parsed.data.authProfileId }),
+          metadata: {
+            ...executionConditions
+          }
         });
         repository.saveRunGraph(graph);
         registry.setStatus(runId, graph.run.status);

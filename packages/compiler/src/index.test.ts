@@ -368,4 +368,28 @@ describe('compileRecording — normalization pipeline', () => {
     const types = wf.steps.map((s) => s.type);
     expect(types).toEqual(['click']);
   });
+
+  it('preserves target dataTruthId on compiled workflow steps', () => {
+    const wf = compileRecording(
+      session([
+        {
+          eventId: 'e1',
+          type: 'click',
+          atMs: 0,
+          tabId: 't1',
+          target: {
+            primaryLocator: { kind: 'role', role: 'button', name: 'Submit Order' },
+            fallbackLocators: [],
+            dataTruthId: 'submit-order-alpha'
+          },
+          button: 'left'
+        }
+      ])
+    );
+
+    expect(wf.steps).toHaveLength(1);
+    const step = wf.steps[0]!;
+    expect('dataTruthId' in step && step.dataTruthId).toBe('submit-order-alpha');
+  });
 });
+

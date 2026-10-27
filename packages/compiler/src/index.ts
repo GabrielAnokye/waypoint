@@ -5,6 +5,7 @@ import {
   WORKFLOW_SCHEMA_VERSION,
   WorkflowSchema,
   createDefaultDebugMetadata,
+  getLocatorFamily,
   type DebugMetadata,
   type Locator,
   type RawRecordedEvent,
@@ -34,14 +35,6 @@ const LOCATOR_SCORE: Record<Locator['kind'], number> = {
   coordinates: 10
 };
 
-const SEMANTIC_KINDS = new Set<Locator['kind']>([
-  'role',
-  'testId',
-  'label',
-  'placeholder',
-  'text'
-]);
-
 interface RankedLocators {
   primary: Locator;
   fallbacks: Locator[];
@@ -56,13 +49,18 @@ function rankTargetLocators(target: Target): RankedLocators {
   );
   const primary = sorted[0]!;
   const fallbacks = sorted.slice(1);
-  const hasSemantic = sorted.some((l) => SEMANTIC_KINDS.has(l.kind));
+  const hasSemantic = sorted.some((l) => {
+    const family = getLocatorFamily(l.kind);
+    return family === 'intent' || family === 'testContract';
+  });
 
   let confidence: number;
   switch (primary.kind) {
     case 'role':
-    case 'testId':
       confidence = 0.95;
+      break;
+    case 'testId':
+      confidence = 0.93;
       break;
     case 'label':
     case 'placeholder':
@@ -229,10 +227,22 @@ function buildDebug(
   };
 }
 
+function extractTruthId(event: RawRecordedEvent): string | undefined {
+  if ('target' in event && event.target && 'dataTruthId' in event.target && typeof event.target.dataTruthId === 'string') {
+    return event.target.dataTruthId;
+  }
+  if ('element' in event && event.element?.attributes?.['data-truth-id']) {
+    return event.element.attributes['data-truth-id'];
+  }
+  return undefined;
+}
+
 function compileEventToSteps(
   event: RawRecordedEvent,
   nextId: () => string
 ): WorkflowStep[] {
+  const dataTruthId = extractTruthId(event);
+
   switch (event.type) {
     case 'tabOpened':
       return [
@@ -286,6 +296,7 @@ function compileEventToSteps(
           primaryLocator: ranked.primary,
           fallbackLocators: ranked.fallbacks,
           framePath: event.target.framePath,
+          ...(dataTruthId ? { dataTruthId } : {}),
           timeoutMs: DEFAULT_STEP_TIMEOUT_MS,
           retryPolicy: DEFAULT_RETRY_POLICY,
           debug: buildDebug(event, ranked),
@@ -306,6 +317,7 @@ function compileEventToSteps(
           primaryLocator: ranked.primary,
           fallbackLocators: ranked.fallbacks,
           framePath: event.target.framePath,
+          ...(dataTruthId ? { dataTruthId } : {}),
           timeoutMs: DEFAULT_STEP_TIMEOUT_MS,
           retryPolicy: DEFAULT_RETRY_POLICY,
           debug: buildDebug(event, ranked),
@@ -327,6 +339,7 @@ function compileEventToSteps(
           primaryLocator: ranked.primary,
           fallbackLocators: ranked.fallbacks,
           framePath: event.target.framePath,
+          ...(dataTruthId ? { dataTruthId } : {}),
           timeoutMs: DEFAULT_STEP_TIMEOUT_MS,
           retryPolicy: DEFAULT_RETRY_POLICY,
           debug: buildDebug(event, ranked),
@@ -346,6 +359,7 @@ function compileEventToSteps(
           primaryLocator: ranked.primary,
           fallbackLocators: ranked.fallbacks,
           framePath: event.target.framePath,
+          ...(dataTruthId ? { dataTruthId } : {}),
           timeoutMs: DEFAULT_STEP_TIMEOUT_MS,
           retryPolicy: DEFAULT_RETRY_POLICY,
           debug: {
@@ -370,6 +384,7 @@ function compileEventToSteps(
           primaryLocator: ranked.primary,
           fallbackLocators: ranked.fallbacks,
           framePath: event.target.framePath,
+          ...(dataTruthId ? { dataTruthId } : {}),
           timeoutMs: DEFAULT_STEP_TIMEOUT_MS,
           retryPolicy: DEFAULT_RETRY_POLICY,
           debug: buildDebug(event, ranked),
@@ -391,6 +406,7 @@ function compileEventToSteps(
           primaryLocator: ranked.primary,
           fallbackLocators: ranked.fallbacks,
           framePath: event.target.framePath,
+          ...(dataTruthId ? { dataTruthId } : {}),
           timeoutMs: DEFAULT_STEP_TIMEOUT_MS,
           retryPolicy: DEFAULT_RETRY_POLICY,
           debug: buildDebug(event, ranked),
@@ -411,6 +427,7 @@ function compileEventToSteps(
           primaryLocator: ranked.primary,
           fallbackLocators: ranked.fallbacks,
           framePath: event.target.framePath,
+          ...(dataTruthId ? { dataTruthId } : {}),
           timeoutMs: DEFAULT_STEP_TIMEOUT_MS,
           retryPolicy: DEFAULT_RETRY_POLICY,
           debug: buildDebug(event, ranked),

@@ -133,11 +133,55 @@ export const LocatorSchema = z.discriminatedUnion('kind', [
   })
 ]);
 
+/**
+ * Strategy families for browser locators:
+ * - `intent`: semantic role, label, text, placeholder
+ * - `testContract`: explicit automated test id (e.g. data-testid)
+ * - `structural`: DOM tree selectors (css, xpath)
+ * - `coordinate`: positional viewport coordinates (x, y)
+ */
+export const LocatorFamilySchema = z.enum([
+  'intent',
+  'testContract',
+  'structural',
+  'coordinate'
+]);
+
+export function getLocatorFamily(kind: z.infer<typeof LocatorSchema>['kind']): z.infer<typeof LocatorFamilySchema> {
+  switch (kind) {
+    case 'role':
+    case 'label':
+    case 'text':
+    case 'placeholder':
+      return 'intent';
+    case 'testId':
+      return 'testContract';
+    case 'css':
+    case 'xpath':
+      return 'structural';
+    case 'coordinates':
+      return 'coordinate';
+  }
+}
+
+/**
+ * Strict ground-truth classification of an action against an element:
+ * - `true_positive`: Found element's data-truth-id matches recorded expected truth ID.
+ * - `false_positive`: Found element's data-truth-id does not match (wrong-target action).
+ * - `true_negative`: Locator safely failed without matching any element (count === 0).
+ */
+export const TruthClassificationSchema = z.enum([
+  'true_positive',
+  'false_positive',
+  'true_negative'
+]);
+
 /** Shared target representation used during recording and replay. */
 export const TargetSchema = z.object({
   primaryLocator: LocatorSchema,
   fallbackLocators: z.array(LocatorSchema).default([]),
-  framePath: FramePathSchema.optional()
+  framePath: FramePathSchema.optional(),
+  dataTruthId: z.string().optional()
 });
 
 /** Trigger metadata stored on workflow definitions and workflow records. */
@@ -158,7 +202,8 @@ const StepBaseSchema = z.object({
   timeoutMs: z.number().int().positive().default(DEFAULT_STEP_TIMEOUT_MS),
   retryPolicy: RetryPolicySchema.default(DEFAULT_RETRY_POLICY),
   debug: DebugMetadataSchema.default(createDefaultDebugMetadata),
-  tabAlias: z.string().min(1).optional()
+  tabAlias: z.string().min(1).optional(),
+  dataTruthId: z.string().optional()
 });
 
 const InteractiveStepBaseSchema = StepBaseSchema.extend(TargetSchema.shape);
@@ -527,6 +572,9 @@ export const RunStepResultSchema = z.object({
   resolvedLocator: LocatorSchema.optional(),
   /** True when the primary locator missed and a fallback resolved instead. */
   usedFallback: z.boolean().optional(),
+  truthClassification: TruthClassificationSchema.optional(),
+  resolvedTruthId: z.string().optional(),
+  expectedTruthId: z.string().optional(),
   errorCode: z.string().min(1).optional(),
   errorMessage: z.string().min(1).optional(),
   artifactIds: z.array(EntityIdSchema).default([]),
@@ -685,7 +733,10 @@ export const RunEventSchema = z.discriminatedUnion('kind', [
     finishedAt: IsoDateTimeSchema,
     durationMs: z.number().int().nonnegative(),
     resolvedLocator: LocatorSchema.optional(),
-    usedFallback: z.boolean().optional()
+    usedFallback: z.boolean().optional(),
+    truthClassification: TruthClassificationSchema.optional(),
+    resolvedTruthId: z.string().optional(),
+    expectedTruthId: z.string().optional()
   }),
   z.object({
     kind: z.literal('step.failed'),
@@ -695,7 +746,10 @@ export const RunEventSchema = z.discriminatedUnion('kind', [
     finishedAt: IsoDateTimeSchema,
     durationMs: z.number().int().nonnegative(),
     error: RunErrorSchema,
-    screenshotPath: z.string().min(1).optional()
+    screenshotPath: z.string().min(1).optional(),
+    truthClassification: TruthClassificationSchema.optional(),
+    resolvedTruthId: z.string().optional(),
+    expectedTruthId: z.string().optional()
   }),
   z.object({
     kind: z.literal('step.retrying'),
@@ -1243,3 +1297,5 @@ export type CreateAuthProfileRequest = z.infer<typeof CreateAuthProfileRequestSc
 export type LoginSessionResponse = z.infer<typeof LoginSessionResponseSchema>;
 export type CreateScheduleRequest = z.infer<typeof CreateScheduleRequestSchema>;
 export type UpdateScheduleRequest = z.infer<typeof UpdateScheduleRequestSchema>;
+export type LocatorFamily = z.infer<typeof LocatorFamilySchema>;
+export type TruthClassification = z.infer<typeof TruthClassificationSchema>;

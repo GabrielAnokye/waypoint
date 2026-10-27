@@ -156,6 +156,7 @@ function buildTarget(el: Element): Target {
   const labelText = getLabelText(el);
   const placeholder = el.getAttribute('placeholder') ?? undefined;
   const testId = el.getAttribute('data-testid') ?? undefined;
+  const dataTruthId = el.getAttribute('data-truth-id') ?? undefined;
   const desc = getDescriptor(el);
   const cssCandidate = buildCssCandidate(desc);
   const xpathFallback = buildXpathFallback(desc);
@@ -183,11 +184,12 @@ function buildTarget(el: Element): Target {
     locators.push({ kind: 'xpath', selector: xpathFallback });
   }
 
-  // If nothing semantic found, fallback to coordinates.
-  if (locators.length === 0) {
-    const rect = el.getBoundingClientRect();
-    locators.push({ kind: 'coordinates', x: Math.round(rect.x), y: Math.round(rect.y) });
-  }
+  // Unconditionally capture center-point (x, y) coordinates for every step,
+  // regardless of whether semantic locators were found.
+  const rect = el.getBoundingClientRect();
+  const centerX = Math.round(rect.left + rect.width / 2);
+  const centerY = Math.round(rect.top + rect.height / 2);
+  locators.push({ kind: 'coordinates', x: centerX, y: centerY });
 
   const primary = locators[0]!;
   const fallbacks = locators.slice(1);
@@ -195,7 +197,8 @@ function buildTarget(el: Element): Target {
   return {
     primaryLocator: primary as Target['primaryLocator'],
     fallbackLocators: fallbacks as Target['fallbackLocators'],
-    ...(framePath ? { framePath } : {})
+    ...(framePath ? { framePath } : {}),
+    ...(dataTruthId ? { dataTruthId } : {})
   };
 }
 

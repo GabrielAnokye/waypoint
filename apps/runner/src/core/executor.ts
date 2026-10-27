@@ -5,6 +5,7 @@ import type {
   Locator,
   RepairRecord,
   RunEvent,
+  TruthClassification,
   Workflow,
   WorkflowStep
 } from '@waypoint/shared-types';
@@ -25,10 +26,24 @@ export interface ExecuteStepContext {
  * necessarily the step's primary one. Together with `usedFallback` this is the
  * raw observation the locator-robustness study aggregates: for a given page
  * mutation, which strategy still found the element.
+ *
+ * `resolvedTruthId` is the data-truth-id found on the target element in the DOM.
+ * `truthClassification` classifies whether it was a True Positive, False Positive, or True Negative.
  */
 export interface StepExecutionResult {
-  resolvedLocator?: Locator;
-  usedFallback?: boolean;
+  resolvedLocator?: Locator | undefined;
+  usedFallback?: boolean | undefined;
+  resolvedTruthId?: string | undefined;
+  truthClassification?: TruthClassification | undefined;
+}
+
+export interface ExecutionConditions {
+  headless: boolean;
+  slowMo: number;
+  contextIsolation: 'isolated' | 'attached';
+  browserEngine: string;
+  cdpEndpoint?: string;
+  [key: string]: unknown;
 }
 
 /**
@@ -44,13 +59,13 @@ export interface BrowserLauncher {
   /**
    * Discard any page state carried over from a previous run, so the next run
    * starts clean. Called before each run begins.
-   *
-   * Without this a launcher that caches its browser hands run N the cookies,
-   * storage and open pages that run N-1 left behind, and results become
-   * order-dependent — a failure can no longer be attributed to the page
-   * mutation under test.
    */
   resetForRun?(options?: RunTargetOptions): Promise<void>;
+  /**
+   * Returns execution parameters (headless, slowMo, contextIsolation, browserEngine)
+   * embedded into the runs table metadata for research auditability.
+   */
+  getExecutionConditions?(): ExecutionConditions;
   dispose?(): Promise<void>;
 }
 
@@ -66,6 +81,14 @@ export interface RunTargetOptions {
 export const noopBrowserLauncher: BrowserLauncher = {
   async executeStep() {
     /* no-op */
+  },
+  getExecutionConditions() {
+    return {
+      headless: true,
+      slowMo: 0,
+      contextIsolation: 'isolated',
+      browserEngine: 'noop'
+    };
   }
 };
 
@@ -124,6 +147,20 @@ export async function* executeWorkflow(
     let attempt = 1;
     let succeeded = false;
 
+    const stepTarget =
+      'target' in step && typeof step.target === 'object' && step.target !== null
+        ? (step.target as { dataTruthId?: unknown })
+        : undefined;
+    const targetTruthId =
+      stepTarget && typeof stepTarget.dataTruthId === 'string' && stepTarget.dataTruthId
+        ? stepTarget.dataTruthId
+        : undefined;
+    const directTruthId =
+      'dataTruthId' in step && typeof step.dataTruthId === 'string' && step.dataTruthId
+        ? step.dataTruthId
+        : undefined;
+    const expectedTruthId: string | undefined = directTruthId || targetTruthId || undefined;
+
     while (attempt <= maxAttempts) {
       if (signal.aborted) {
         finalStatus = 'canceled';
@@ -149,6 +186,18 @@ export async function* executeWorkflow(
           signal
         });
         const finishedAt = now().toISOString();
+        const resolvedTruthId = result && 'resolvedTruthId' in result ? result.resolvedTruthId : undefined;
+        let truthClassification: TruthClassification | undefined =
+          result && 'truthClassification' in result ? result.truthClassification : undefined;
+
+        if (!truthClassification && (expectedTruthId !== undefined || resolvedTruthId !== undefined)) {
+          if (expectedTruthId && resolvedTruthId && expectedTruthId === resolvedTruthId) {
+            truthClassification = 'true_positive';
+          } else {
+            truthClassification = 'false_positive';
+          }
+        }
+
         yield {
           kind: 'step.succeeded',
           runId,
@@ -163,7 +212,10 @@ export async function* executeWorkflow(
             : {}),
           ...(result?.usedFallback !== undefined
             ? { usedFallback: result.usedFallback }
-            : {})
+            : {}),
+          ...(truthClassification ? { truthClassification } : {}),
+          ...(resolvedTruthId ? { resolvedTruthId } : {}),
+          ...(expectedTruthId ? { expectedTruthId } : {})
         };
         succeeded = true;
         break;
@@ -199,6 +251,11 @@ export async function* executeWorkflow(
           message,
           stepId: step.id
         };
+        let failTruthClassification: TruthClassification | undefined;
+        if (failureCode === 'locator_not_found') {
+          failTruthClassification = 'true_negative';
+        }
+
         yield {
           kind: 'step.failed',
           runId,
@@ -206,7 +263,9 @@ export async function* executeWorkflow(
           stepIndex: i,
           finishedAt,
           durationMs: Date.now() - stepStartMs,
-          error: finalError
+          error: finalError,
+          ...(failTruthClassification ? { truthClassification: failTruthClassification } : {}),
+          ...(expectedTruthId ? { expectedTruthId } : {})
         };
         finalStatus = 'failed';
         break;

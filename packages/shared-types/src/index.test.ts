@@ -5,16 +5,20 @@ import { describe, expect, it } from 'vitest';
 import {
   ArtifactSchema,
   AuthProfileSchema,
+  LocatorFamilySchema,
   RawRecordedEventSchema,
   RunSchema,
   RunStepResultSchema,
   ScheduleSchema,
   SampleWorkflow,
+  TargetSchema,
+  TruthClassificationSchema,
   WORKFLOW_SCHEMA_VERSION,
   WorkflowSchema,
   WorkflowVersionSchema,
   createWorkflowVersion,
   exportWorkflowToJson,
+  getLocatorFamily,
   importWorkflowFromJson,
   redactString,
   redactObject
@@ -274,3 +278,73 @@ describe('sample workflow JSON artifact', () => {
     expect(parsed.steps[4]?.type).toBe('assert');
   });
 });
+
+describe('LocatorFamily and getLocatorFamily', () => {
+  it('correctly maps locator kinds to their respective families', () => {
+    // Intent family
+    expect(getLocatorFamily('role')).toBe('intent');
+    expect(getLocatorFamily('label')).toBe('intent');
+    expect(getLocatorFamily('text')).toBe('intent');
+    expect(getLocatorFamily('placeholder')).toBe('intent');
+
+    // Test contract family (decoupled from intent)
+    expect(getLocatorFamily('testId')).toBe('testContract');
+
+    // Structural family
+    expect(getLocatorFamily('css')).toBe('structural');
+    expect(getLocatorFamily('xpath')).toBe('structural');
+
+    // Coordinate family
+    expect(getLocatorFamily('coordinates')).toBe('coordinate');
+  });
+
+  it('validates schema enum values', () => {
+    expect(LocatorFamilySchema.safeParse('intent').success).toBe(true);
+    expect(LocatorFamilySchema.safeParse('testContract').success).toBe(true);
+    expect(LocatorFamilySchema.safeParse('structural').success).toBe(true);
+    expect(LocatorFamilySchema.safeParse('coordinate').success).toBe(true);
+    expect(LocatorFamilySchema.safeParse('unknown').success).toBe(false);
+  });
+});
+
+describe('TruthClassificationSchema', () => {
+  it('accepts valid truth classifications', () => {
+    expect(TruthClassificationSchema.parse('true_positive')).toBe('true_positive');
+    expect(TruthClassificationSchema.parse('false_positive')).toBe('false_positive');
+    expect(TruthClassificationSchema.parse('true_negative')).toBe('true_negative');
+  });
+
+  it('rejects invalid truth classifications', () => {
+    expect(TruthClassificationSchema.safeParse('false_negative').success).toBe(false);
+    expect(TruthClassificationSchema.safeParse('other').success).toBe(false);
+  });
+});
+
+describe('TargetSchema and RunStepResultSchema with truth metadata', () => {
+  it('parses target with dataTruthId', () => {
+    const target = TargetSchema.parse({
+      primaryLocator: { kind: 'role', role: 'button', name: 'Submit' },
+      dataTruthId: 'submit-btn-1'
+    });
+    expect(target.dataTruthId).toBe('submit-btn-1');
+  });
+
+  it('parses step result with truth classification and audit IDs', () => {
+    const stepResult = RunStepResultSchema.parse({
+      id: 'rsr_1',
+      runId: 'run_1',
+      stepId: 'step_1',
+      stepType: 'click',
+      status: 'succeeded',
+      attemptCount: 1,
+      startedAt: '2026-03-09T12:00:00.000Z',
+      truthClassification: 'true_positive',
+      resolvedTruthId: 'submit-btn-1',
+      expectedTruthId: 'submit-btn-1'
+    });
+    expect(stepResult.truthClassification).toBe('true_positive');
+    expect(stepResult.resolvedTruthId).toBe('submit-btn-1');
+    expect(stepResult.expectedTruthId).toBe('submit-btn-1');
+  });
+});
+

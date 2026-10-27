@@ -1,9 +1,11 @@
 import { randomUUID } from 'node:crypto';
 
 import type {
+  JsonValue,
   Locator,
   RunEvent,
   RunGraph,
+  TruthClassification,
   Workflow
 } from '@waypoint/shared-types';
 
@@ -18,6 +20,9 @@ interface StepAccumulator {
   durationMs?: number;
   resolvedLocator?: Locator;
   usedFallback?: boolean;
+  truthClassification?: TruthClassification;
+  resolvedTruthId?: string;
+  expectedTruthId?: string;
   errorCode?: string;
   errorMessage?: string;
 }
@@ -34,6 +39,7 @@ export async function buildRunGraph(
     workflowVersionId: string;
     triggerSource?: 'manual' | 'schedule' | 'repair';
     authProfileId?: string;
+    metadata?: Record<string, unknown>;
     now?: () => Date;
   }
 ): Promise<RunGraph> {
@@ -78,6 +84,9 @@ export async function buildRunGraph(
           acc.durationMs = event.durationMs;
           if (event.resolvedLocator) acc.resolvedLocator = event.resolvedLocator;
           if (event.usedFallback !== undefined) acc.usedFallback = event.usedFallback;
+          if (event.truthClassification) acc.truthClassification = event.truthClassification;
+          if (event.resolvedTruthId) acc.resolvedTruthId = event.resolvedTruthId;
+          if (event.expectedTruthId) acc.expectedTruthId = event.expectedTruthId;
         }
         break;
       }
@@ -89,6 +98,9 @@ export async function buildRunGraph(
           acc.durationMs = event.durationMs;
           acc.errorCode = event.error.code;
           acc.errorMessage = event.error.message;
+          if (event.truthClassification) acc.truthClassification = event.truthClassification;
+          if (event.resolvedTruthId) acc.resolvedTruthId = event.resolvedTruthId;
+          if (event.expectedTruthId) acc.expectedTruthId = event.expectedTruthId;
         }
         break;
       }
@@ -124,7 +136,7 @@ export async function buildRunGraph(
       errorMessage,
       createdAt,
       updatedAt,
-      metadata: {}
+      metadata: (options.metadata as Record<string, JsonValue>) ?? {}
     },
     steps: [...stepsById.values()].map((acc) => ({
       id: acc.id,
@@ -138,6 +150,9 @@ export async function buildRunGraph(
       durationMs: acc.durationMs,
       resolvedLocator: acc.resolvedLocator,
       usedFallback: acc.usedFallback,
+      truthClassification: acc.truthClassification,
+      resolvedTruthId: acc.resolvedTruthId,
+      expectedTruthId: acc.expectedTruthId,
       errorCode: acc.errorCode,
       errorMessage: acc.errorMessage,
       artifactIds: [],

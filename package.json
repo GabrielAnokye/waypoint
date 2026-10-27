@@ -17,6 +17,7 @@
     "typecheck": "tsc -b --pretty false",
     "clean": "corepack pnpm -r clean && rimraf coverage playwright-report test-results",
     "serve:fixtures": "npx -y serve tests/fixtures/demo-pages -l 8080 --no-clipboard",
+    "serve:mutations": "tsx apps/runner/src/core/mutation/server.ts",
     "chrome:debug": "node scripts/chrome-debug.mjs"
   },
   "devDependencies": {

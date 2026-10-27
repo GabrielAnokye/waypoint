@@ -10,11 +10,13 @@
  * - Record enough diagnostics to support manual rebinding.
  */
 
-import type {
-  FailureCode,
-  Locator,
-  RepairRecord,
-  WorkflowStep
+import {
+  getLocatorFamily,
+  type FailureCode,
+  type Locator,
+  type LocatorFamily,
+  type RepairRecord,
+  type WorkflowStep
 } from '@waypoint/shared-types';
 
 // ---- Types for pluggable page interface ----
@@ -121,13 +123,16 @@ function resolveFrameContext(
  * 2. If not found or ambiguous, try each fallback in order
  * 3. If nothing works, return a structured failure with repair record
  */
+export interface ResolveLocatorOptions {
+  timestamp?: string;
+  screenshotPath?: string;
+  allowedFamily?: LocatorFamily;
+}
+
 export async function resolveLocator(
   page: LocatablePage,
   step: WorkflowStep,
-  options: {
-    timestamp?: string;
-    screenshotPath?: string;
-  } = {}
+  options: ResolveLocatorOptions = {}
 ): Promise<ResolveResult | ResolveFailure> {
   // Steps without locators don't need resolution
   if (!('primaryLocator' in step) || !step.primaryLocator) {
@@ -147,7 +152,10 @@ export async function resolveLocator(
 
   const primary = step.primaryLocator;
   const fallbacks: Locator[] = 'fallbackLocators' in step ? (step.fallbackLocators ?? []) : [];
-  const allLocators = [primary, ...fallbacks];
+  const candidateLocators = [primary, ...fallbacks];
+  const allLocators = options.allowedFamily
+    ? candidateLocators.filter((l) => getLocatorFamily(l.kind) === options.allowedFamily)
+    : candidateLocators;
   const attempted: Locator[] = [];
 
   for (let i = 0; i < allLocators.length; i++) {
@@ -161,21 +169,22 @@ export async function resolveLocator(
       return {
         handle: handle.first(),
         resolvedLocator: loc,
-        usedFallback: i > 0,
+        usedFallback: i > 0 || (options.allowedFamily !== undefined && loc !== primary),
         confidence: LOCATOR_CONFIDENCE[loc.kind] * (frameMismatchRisk ? 0.8 : 1)
       };
     }
 
     if (count > 1) {
-      // Ambiguous — if this is a semantic locator, take the first match
-      // but flag it. For non-semantic locators, skip to next fallback.
-      const isSemantic = ['role', 'testId', 'label', 'text'].includes(loc.kind);
+      // Ambiguous — if this is an intent or testContract locator, take the first match
+      // but flag it. For structural/coordinate locators, skip to next fallback.
+      const family = getLocatorFamily(loc.kind);
+      const isSemantic = family === 'intent' || family === 'testContract';
       if (isSemantic && count <= 3) {
         // Accept first match but reduce confidence
         return {
           handle: handle.first(),
           resolvedLocator: loc,
-          usedFallback: i > 0,
+          usedFallback: i > 0 || (options.allowedFamily !== undefined && loc !== primary),
           confidence: LOCATOR_CONFIDENCE[loc.kind] * 0.5
         };
       }
@@ -226,8 +235,17 @@ export function classifyError(error: unknown, _step: WorkflowStep): FailureCode 
   if (lower.includes('navigation') || lower.includes('net::err_')) return 'navigation_mismatch';
   if (lower.includes('401') || lower.includes('403') || lower.includes('unauthorized') || lower.includes('login')) return 'auth_expired';
   if (lower.includes('blocked') || lower.includes('captcha') || lower.includes('access denied')) return 'blocked_page';
-  if (lower.includes('strict mode') || lower.includes('resolved to') && lower.includes('elements')) return 'ambiguous_locator';
-  if (lower.includes('not found') || lower.includes('no element')) return 'locator_not_found';
+  if (lower.includes('strict mode') || (lower.includes('resolved to') && lower.includes('elements'))) return 'ambiguous_locator';
+  if (
+    lower.includes('not found') ||
+    lower.includes('not_found') ||
+    lower.includes('no element') ||
+    lower.includes('count === 0') ||
+    lower.includes('nothing at') ||
+    lower.includes('nothing interactive')
+  ) {
+    return 'locator_not_found';
+  }
 
   return 'step_failed';
 }

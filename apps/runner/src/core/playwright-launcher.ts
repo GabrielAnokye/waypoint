@@ -25,6 +25,7 @@ import {
 import type {
   BrowserLauncher,
   ExecuteStepContext,
+  ExecutionConditions,
   RunTargetOptions,
   StepExecutionResult
 } from './executor.js';
@@ -305,6 +306,100 @@ export class PlaywrightBrowserLauncher implements BrowserLauncher {
     });
   }
 
+  /**
+   * Highlights an element during playback so the user can clearly see which
+   * button or input is being pressed.
+   *
+   * 1. Calls locator.focus() so native focus rings and :focus-visible activate.
+   * 2. Sets a high-visibility outline + glow ring (2px solid #0066cc with soft shadow)
+   *    directly on the target element so it highlights reliably even if page styles
+   *    have "outline: none".
+   * 3. Remembers original styles to restore them when cleared.
+   */
+  private async highlightElement(page: Page, pwLocator: PwLocator): Promise<void> {
+    await this.clearHighlight(page);
+
+    try {
+      await pwLocator.focus({ timeout: 1000 }).catch(() => {});
+
+      await pwLocator.evaluate((el) => {
+        el.setAttribute('data-waypoint-highlighted', 'true');
+        const htmlEl = el as HTMLElement;
+        if (!htmlEl.hasAttribute('data-waypoint-prev-outline')) {
+          htmlEl.setAttribute('data-waypoint-prev-outline', htmlEl.style.outline || '');
+          htmlEl.setAttribute('data-waypoint-prev-offset', htmlEl.style.outlineOffset || '');
+          htmlEl.setAttribute('data-waypoint-prev-shadow', htmlEl.style.boxShadow || '');
+        }
+        htmlEl.style.setProperty('outline', '3px solid #1a73e8', 'important');
+        htmlEl.style.setProperty('outline-offset', '2px', 'important');
+        htmlEl.style.setProperty('box-shadow', '0 0 0 4px rgba(26, 115, 232, 0.4)', 'important');
+        htmlEl.style.setProperty('transition', 'outline 0.15s ease, box-shadow 0.15s ease', 'important');
+      }).catch(() => {});
+    } catch {
+      // Best-effort visual feedback; never fail a playback step if highlight fails
+    }
+  }
+
+  /**
+   * Highlights the element located at viewport coordinates (x, y) during a coordinate click.
+   */
+  private async highlightElementAtPoint(page: Page, x: number, y: number): Promise<void> {
+    await this.clearHighlight(page);
+
+    try {
+      await page.evaluate(({ cx, cy }) => {
+        const el = document.elementFromPoint(cx, cy);
+        if (!el) return;
+        el.setAttribute('data-waypoint-highlighted', 'true');
+        const htmlEl = el as HTMLElement;
+        if (typeof htmlEl.focus === 'function') {
+          htmlEl.focus({ preventScroll: true });
+        }
+        if (!htmlEl.hasAttribute('data-waypoint-prev-outline')) {
+          htmlEl.setAttribute('data-waypoint-prev-outline', htmlEl.style.outline || '');
+          htmlEl.setAttribute('data-waypoint-prev-offset', htmlEl.style.outlineOffset || '');
+          htmlEl.setAttribute('data-waypoint-prev-shadow', htmlEl.style.boxShadow || '');
+        }
+        htmlEl.style.setProperty('outline', '3px solid #1a73e8', 'important');
+        htmlEl.style.setProperty('outline-offset', '2px', 'important');
+        htmlEl.style.setProperty('box-shadow', '0 0 0 4px rgba(26, 115, 232, 0.4)', 'important');
+        htmlEl.style.setProperty('transition', 'outline 0.15s ease, box-shadow 0.15s ease', 'important');
+      }, { cx: x, cy: y }).catch(() => {});
+    } catch {
+      // Best-effort
+    }
+  }
+
+  /**
+   * Clears any active highlight from the page.
+   */
+  private async clearHighlight(page: Page): Promise<void> {
+    try {
+      await page.evaluate(() => {
+        const highlighted = document.querySelectorAll('[data-waypoint-highlighted="true"]');
+        highlighted.forEach((el) => {
+          const htmlEl = el as HTMLElement;
+          const prevOutline = htmlEl.getAttribute('data-waypoint-prev-outline') ?? '';
+          const prevOffset = htmlEl.getAttribute('data-waypoint-prev-offset') ?? '';
+          const prevShadow = htmlEl.getAttribute('data-waypoint-prev-shadow') ?? '';
+          htmlEl.style.removeProperty('outline');
+          htmlEl.style.removeProperty('outline-offset');
+          htmlEl.style.removeProperty('box-shadow');
+          htmlEl.style.removeProperty('transition');
+          if (prevOutline) htmlEl.style.outline = prevOutline;
+          if (prevOffset) htmlEl.style.outlineOffset = prevOffset;
+          if (prevShadow) htmlEl.style.boxShadow = prevShadow;
+          htmlEl.removeAttribute('data-waypoint-highlighted');
+          htmlEl.removeAttribute('data-waypoint-prev-outline');
+          htmlEl.removeAttribute('data-waypoint-prev-offset');
+          htmlEl.removeAttribute('data-waypoint-prev-shadow');
+        });
+      }).catch(() => {});
+    } catch {
+      // Best-effort
+    }
+  }
+
   private async executeClick(
     page: Page,
     step: Extract<WorkflowStep, { type: 'click' }>,
@@ -328,6 +423,8 @@ export class PlaywrightBrowserLauncher implements BrowserLauncher {
     }
 
     const pwLocator = getPwLocator(result.handle);
+    await this.highlightElement(page, pwLocator);
+    const resolvedTruthId = (await pwLocator.getAttribute('data-truth-id').catch(() => null)) ?? undefined;
     await pwLocator.click({
       button: step.button,
       clickCount: step.clickCount,
@@ -336,7 +433,8 @@ export class PlaywrightBrowserLauncher implements BrowserLauncher {
 
     return {
       resolvedLocator: result.resolvedLocator,
-      usedFallback: result.usedFallback
+      usedFallback: result.usedFallback,
+      resolvedTruthId
     };
   }
 
@@ -362,6 +460,7 @@ export class PlaywrightBrowserLauncher implements BrowserLauncher {
     const hitInfo = await page.evaluate<{
       tag: string;
       id?: string;
+      truthId?: string;
       testId?: string;
       text?: string;
       isInteractive: boolean;
@@ -371,7 +470,8 @@ export class PlaywrightBrowserLauncher implements BrowserLauncher {
       return {
         tag: el.tagName.toLowerCase(),
         id: el.id || undefined,
-        testId: el.getAttribute('data-testid') || el.getAttribute('data-truth-id') || undefined,
+        truthId: el.getAttribute('data-truth-id') || undefined,
+        testId: el.getAttribute('data-testid') || undefined,
         text: (el.textContent || '').trim().slice(0, 80) || undefined,
         isInteractive: ['A', 'BUTTON', 'INPUT', 'SELECT', 'TEXTAREA'].includes(el.tagName) ||
           el.getAttribute('role') === 'button' ||
@@ -380,12 +480,14 @@ export class PlaywrightBrowserLauncher implements BrowserLauncher {
       };
     })()`);
 
-    if (!hitInfo) {
+    if (!hitInfo || !hitInfo.isInteractive) {
       throw new Error(
-        `Coordinate click failed: nothing at (${coord.x}, ${coord.y}) — ` +
-        `the point is outside the viewport or over empty space.`
+        `Coordinate click failed: nothing interactive at (${coord.x}, ${coord.y}) — ` +
+        `the point is outside the viewport, over empty space, or hit a non-interactive element (${hitInfo?.tag ?? 'none'}).`
       );
     }
+
+    await this.highlightElementAtPoint(page, coord.x, coord.y);
 
     // Execute the actual click at the coordinate
     await page.mouse.click(coord.x, coord.y, {
@@ -395,7 +497,8 @@ export class PlaywrightBrowserLauncher implements BrowserLauncher {
 
     return {
       resolvedLocator: { kind: 'coordinates', x: coord.x, y: coord.y },
-      usedFallback: false
+      usedFallback: false,
+      resolvedTruthId: hitInfo.truthId
     };
   }
 
@@ -414,6 +517,8 @@ export class PlaywrightBrowserLauncher implements BrowserLauncher {
     }
 
     const pwLocator = getPwLocator(result.handle);
+    await this.highlightElement(page, pwLocator);
+    const resolvedTruthId = (await pwLocator.getAttribute('data-truth-id').catch(() => null)) ?? undefined;
     if (step.clearBefore) {
       await pwLocator.clear({ timeout });
     }
@@ -421,7 +526,8 @@ export class PlaywrightBrowserLauncher implements BrowserLauncher {
 
     return {
       resolvedLocator: result.resolvedLocator,
-      usedFallback: result.usedFallback
+      usedFallback: result.usedFallback,
+      resolvedTruthId
     };
   }
 
@@ -440,6 +546,8 @@ export class PlaywrightBrowserLauncher implements BrowserLauncher {
     }
 
     const pwLocator = getPwLocator(result.handle);
+    await this.highlightElement(page, pwLocator);
+    const resolvedTruthId = (await pwLocator.getAttribute('data-truth-id').catch(() => null)) ?? undefined;
     const { by, value } = step.option;
 
     if (by === 'label') {
@@ -453,7 +561,8 @@ export class PlaywrightBrowserLauncher implements BrowserLauncher {
 
     return {
       resolvedLocator: result.resolvedLocator,
-      usedFallback: result.usedFallback
+      usedFallback: result.usedFallback,
+      resolvedTruthId
     };
   }
 
@@ -474,13 +583,16 @@ export class PlaywrightBrowserLauncher implements BrowserLauncher {
       }
 
       const pwLocator = getPwLocator(result.handle);
+      await this.highlightElement(page, pwLocator);
+      const resolvedTruthId = (await pwLocator.getAttribute('data-truth-id').catch(() => null)) ?? undefined;
       // Build the key combo with modifiers
       const key = buildKeyCombo(step.key, step.modifiers);
       await pwLocator.press(key, { timeout });
 
       return {
         resolvedLocator: result.resolvedLocator,
-        usedFallback: result.usedFallback
+        usedFallback: result.usedFallback,
+        resolvedTruthId
       };
     }
 
@@ -519,6 +631,8 @@ export class PlaywrightBrowserLauncher implements BrowserLauncher {
     const state = stateMap[step.condition] ?? 'visible';
     await pwLocator.waitFor({ state, timeout });
 
+    const resolvedTruthId = (await pwLocator.getAttribute('data-truth-id').catch(() => null)) ?? undefined;
+
     // Extra check for enabled/disabled conditions
     if (step.condition === 'enabled') {
       const isEnabled = await pwLocator.isEnabled({ timeout });
@@ -530,7 +644,8 @@ export class PlaywrightBrowserLauncher implements BrowserLauncher {
 
     return {
       resolvedLocator: result.resolvedLocator,
-      usedFallback: result.usedFallback
+      usedFallback: result.usedFallback,
+      resolvedTruthId
     };
   }
 
@@ -549,6 +664,7 @@ export class PlaywrightBrowserLauncher implements BrowserLauncher {
     }
 
     const pwLocator = getPwLocator(result.handle);
+    const resolvedTruthId = (await pwLocator.getAttribute('data-truth-id').catch(() => null)) ?? undefined;
     const assertion = step.assertion;
 
     switch (assertion.kind) {
@@ -602,7 +718,8 @@ export class PlaywrightBrowserLauncher implements BrowserLauncher {
 
     return {
       resolvedLocator: result.resolvedLocator,
-      usedFallback: result.usedFallback
+      usedFallback: result.usedFallback,
+      resolvedTruthId
     };
   }
 
@@ -649,7 +766,12 @@ export class PlaywrightBrowserLauncher implements BrowserLauncher {
    */
   async resetForRun(options: RunTargetOptions = {}): Promise<void> {
     this.runTarget = options;
-    if (this.attached) return;
+    if (this.attached) {
+      if (this.activePage) {
+        await this.clearHighlight(this.activePage);
+      }
+      return;
+    }
     if (this.context) {
       try { await this.context.close(); } catch { /* already gone */ }
       this.context = null;
@@ -691,6 +813,16 @@ export class PlaywrightBrowserLauncher implements BrowserLauncher {
     }
     this.pages.clear();
     this.activePage = null;
+  }
+
+  getExecutionConditions(): ExecutionConditions {
+    return {
+      headless: Boolean(this.options.headless),
+      slowMo: this.options.slowMo ?? 0,
+      contextIsolation: this.options.cdpEndpoint ? 'attached' : 'isolated',
+      browserEngine: this.options.cdpEndpoint ? 'cdp' : 'chromium',
+      ...(this.options.cdpEndpoint ? { cdpEndpoint: this.options.cdpEndpoint } : {})
+    };
   }
 }
 

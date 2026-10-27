@@ -117,6 +117,71 @@ describe('WaypointRepository', () => {
     database.close();
   });
 
+  it('round-trips truthClassification, audit truth IDs, and run execution metadata', () => {
+    const database = openWaypointDatabase(':memory:');
+    const seedBundle = createDevelopmentSeedBundle();
+
+    database.repository.upsertAuthProfile(seedBundle.authProfile);
+    database.repository.saveWorkflowVersion(seedBundle.workflowVersion);
+    database.repository.upsertSchedule(seedBundle.schedule);
+
+    const steps = seedBundle.runGraph.steps.map((step, index) =>
+      index === 0
+        ? {
+            ...step,
+            truthClassification: 'true_positive' as const,
+            resolvedTruthId: 'truth-btn-submit',
+            expectedTruthId: 'truth-btn-submit'
+          }
+        : {
+            ...step,
+            truthClassification: 'false_positive' as const,
+            resolvedTruthId: 'truth-btn-cancel',
+            expectedTruthId: 'truth-btn-save'
+          }
+    );
+
+    const runWithMetadata = {
+      ...seedBundle.runGraph.run,
+      metadata: {
+        headless: true,
+        slowMo: 50,
+        contextIsolation: 'isolated',
+        browserEngine: 'chromium'
+      }
+    };
+
+    database.repository.saveRunGraph({
+      ...seedBundle.runGraph,
+      run: runWithMetadata,
+      steps
+    });
+
+    const runGraph = database.repository.getRunGraph(runWithMetadata.id);
+    expect(runGraph).toBeDefined();
+
+    // Verify execution condition metadata on run
+    expect(runGraph?.run.metadata).toEqual({
+      headless: true,
+      slowMo: 50,
+      contextIsolation: 'isolated',
+      browserEngine: 'chromium'
+    });
+
+    // Verify truth classification and IDs on steps
+    const first = runGraph?.steps[0];
+    expect(first?.truthClassification).toBe('true_positive');
+    expect(first?.resolvedTruthId).toBe('truth-btn-submit');
+    expect(first?.expectedTruthId).toBe('truth-btn-submit');
+
+    const second = runGraph?.steps[1];
+    expect(second?.truthClassification).toBe('false_positive');
+    expect(second?.resolvedTruthId).toBe('truth-btn-cancel');
+    expect(second?.expectedTruthId).toBe('truth-btn-save');
+
+    database.close();
+  });
+
   it('rolls back transaction-scoped writes when an error occurs', () => {
     const database = openWaypointDatabase(':memory:');
     const seedBundle = createDevelopmentSeedBundle();

@@ -181,4 +181,67 @@ describe('executeWorkflow', () => {
     expect(succeeded.resolvedLocator).toEqual(resolvedLocator);
     expect(succeeded.usedFallback).toBe(true);
   });
+
+  describe('Ground-Truth Comparator', () => {
+    it('classifies step as true_positive when resolved data-truth-id matches expected truth ID', async () => {
+      const wf = makeWorkflow([
+        clickStep('s1', { dataTruthId: 'submit-order-alpha' })
+      ]);
+      const launcher: BrowserLauncher = {
+        async executeStep() {
+          return {
+            resolvedLocator: { kind: 'role', role: 'button', name: 'Submit' },
+            resolvedTruthId: 'submit-order-alpha'
+          };
+        }
+      };
+
+      const events = await collectEvents(executeWorkflow(wf, { launcher }));
+      const succeeded = events.find(e => e.kind === 'step.succeeded')!;
+      expect(succeeded.truthClassification).toBe('true_positive');
+      expect(succeeded.resolvedTruthId).toBe('submit-order-alpha');
+      expect(succeeded.expectedTruthId).toBe('submit-order-alpha');
+    });
+
+    it('classifies step as false_positive when resolved data-truth-id differs from expected truth ID (wrong target)', async () => {
+      const wf = makeWorkflow([
+        clickStep('s1', { dataTruthId: 'delete-order-alpha' })
+      ]);
+      const launcher: BrowserLauncher = {
+        async executeStep() {
+          return {
+            resolvedLocator: { kind: 'role', role: 'button', name: 'Delete' },
+            resolvedTruthId: 'delete-order-beta' // Wrong target clicked!
+          };
+        }
+      };
+
+      const events = await collectEvents(executeWorkflow(wf, { launcher }));
+      const succeeded = events.find(e => e.kind === 'step.succeeded')!;
+      expect(succeeded.truthClassification).toBe('false_positive');
+      expect(succeeded.resolvedTruthId).toBe('delete-order-beta');
+      expect(succeeded.expectedTruthId).toBe('delete-order-alpha');
+    });
+
+    it('classifies step as true_negative when locator safely failed with locator_not_found (count === 0)', async () => {
+      const wf = makeWorkflow([
+        clickStep('s1', {
+          dataTruthId: 'login-submit-btn',
+          retryPolicy: { maxAttempts: 1, backoffMs: 0, strategy: 'fixed' }
+        })
+      ]);
+      const launcher: BrowserLauncher = {
+        async executeStep() {
+          throw new Error('Click failed: locator_not_found — None of the locators matched any element (count === 0).');
+        }
+      };
+
+      const events = await collectEvents(executeWorkflow(wf, { launcher }));
+      const failed = events.find(e => e.kind === 'step.failed')!;
+      expect(failed.error.code).toBe('locator_not_found');
+      expect(failed.truthClassification).toBe('true_negative');
+      expect(failed.expectedTruthId).toBe('login-submit-btn');
+    });
+  });
 });
+

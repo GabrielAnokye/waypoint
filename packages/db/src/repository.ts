@@ -18,6 +18,7 @@ import {
   type RunStepResult,
   type Schedule,
   type Setting,
+  type TruthClassification,
   type Workflow,
   type WorkflowRecord,
   type WorkflowVersion
@@ -166,6 +167,9 @@ function mapRunStepRow(row: SqliteRow): RunStepResult {
       row.used_fallback === null || row.used_fallback === undefined
         ? undefined
         : asNumber(row.used_fallback) === 1,
+    truthClassification: asOptionalString(row.truth_classification) as TruthClassification | undefined,
+    resolvedTruthId: asOptionalString(row.resolved_truth_id),
+    expectedTruthId: asOptionalString(row.expected_truth_id),
     errorCode: asOptionalString(row.error_code),
     errorMessage: asOptionalString(row.error_message),
     artifactIds: parseJsonColumn(
@@ -596,6 +600,9 @@ export class WaypointRepository {
           duration_ms,
           resolved_locator_json,
           used_fallback,
+          truth_classification,
+          resolved_truth_id,
+          expected_truth_id,
           error_code,
           error_message,
           artifact_ids_json,
@@ -612,6 +619,9 @@ export class WaypointRepository {
           :durationMs,
           :resolvedLocatorJson,
           :usedFallback,
+          :truthClassification,
+          :resolvedTruthId,
+          :expectedTruthId,
           :errorCode,
           :errorMessage,
           :artifactIdsJson,
@@ -636,6 +646,9 @@ export class WaypointRepository {
             : null,
           usedFallback:
             step.usedFallback === undefined ? null : step.usedFallback ? 1 : 0,
+          truthClassification: step.truthClassification ?? null,
+          resolvedTruthId: step.resolvedTruthId ?? null,
+          expectedTruthId: step.expectedTruthId ?? null,
           errorCode: step.errorCode ?? null,
           errorMessage: step.errorMessage ?? null,
           artifactIdsJson: serializeJson(step.artifactIds),

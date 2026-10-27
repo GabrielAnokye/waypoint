@@ -156,6 +156,17 @@ export const RUN_STEPS_USED_FALLBACK_SQL = `
 ALTER TABLE run_steps ADD COLUMN used_fallback INTEGER;
 `;
 
+/**
+ * Records ground-truth comparator classifications and audit truth IDs.
+ * Used by research evaluation scripts to distinguish True Positives (IDs match),
+ * False Positives (wrong-target action), and True Negatives (safe count===0 failure).
+ */
+export const RUN_STEPS_TRUTH_CLASSIFICATION_SQL = `
+ALTER TABLE run_steps ADD COLUMN truth_classification TEXT;
+ALTER TABLE run_steps ADD COLUMN resolved_truth_id TEXT;
+ALTER TABLE run_steps ADD COLUMN expected_truth_id TEXT;
+`;
+
 /** Ordered migration list applied to every opened database. */
 export const MIGRATIONS: Migration[] = [
   {
@@ -172,5 +183,11 @@ export const MIGRATIONS: Migration[] = [
     id: 3,
     name: '003_run_steps_used_fallback',
     sql: RUN_STEPS_USED_FALLBACK_SQL
+  },
+  {
+    id: 4,
+    name: '004_run_steps_truth_classification',
+    sql: RUN_STEPS_TRUTH_CLASSIFICATION_SQL
   }
 ];
+
