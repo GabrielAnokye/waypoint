@@ -90,6 +90,8 @@ function targetKey(target: Target): string {
   return (
     JSON.stringify(target.primaryLocator) +
     '|' +
+    JSON.stringify(target.fallbackLocators) +
+    '|' +
     JSON.stringify(target.framePath ?? null)
   );
 }
@@ -116,6 +118,7 @@ function mergeEvents(events: RawRecordedEvent[]): RawRecordedEvent[] {
       event.type === 'input' &&
       last &&
       last.type === 'input' &&
+      last.tabId === event.tabId &&
       targetKey(last.target) === targetKey(event.target)
     ) {
       out[out.length - 1] = {
@@ -141,6 +144,7 @@ function mergeEvents(events: RawRecordedEvent[]): RawRecordedEvent[] {
       event.type === 'click' &&
       last &&
       last.type === 'click' &&
+      last.tabId === event.tabId &&
       targetKey(last.target) === targetKey(event.target) &&
       last.button === event.button &&
       event.atMs - last.atMs < ACCIDENTAL_DOUBLE_CLICK_WINDOW_MS
@@ -459,7 +463,8 @@ function getStepTarget(step: WorkflowStep): Target | null {
     return {
       primaryLocator: step.primaryLocator,
       fallbackLocators: step.fallbackLocators ?? [],
-      framePath: step.framePath
+      framePath: step.framePath,
+      ...(step.dataTruthId ? { dataTruthId: step.dataTruthId } : {})
     };
   }
   return null;
@@ -492,6 +497,7 @@ function insertPostconditions(
           primaryLocator: ranked.primary,
           fallbackLocators: ranked.fallbacks,
           framePath: target.framePath,
+          ...(target.dataTruthId ? { dataTruthId: target.dataTruthId } : {}),
           timeoutMs: DEFAULT_STEP_TIMEOUT_MS,
           retryPolicy: DEFAULT_RETRY_POLICY,
           debug: {

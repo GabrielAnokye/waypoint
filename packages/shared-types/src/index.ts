@@ -168,7 +168,7 @@ export function getLocatorFamily(kind: z.infer<typeof LocatorSchema>['kind']): z
  * Strict ground-truth classification of an action against an element:
  * - `true_positive`: Found element's data-truth-id matches recorded expected truth ID.
  * - `false_positive`: Found element's data-truth-id does not match (wrong-target action).
- * - `true_negative`: Locator safely failed without matching any element (count === 0).
+ * - `true_negative`: Safely abstained because locators were missing or ambiguous.
  */
 export const TruthClassificationSchema = z.enum([
   'true_positive',
@@ -684,12 +684,16 @@ export const FailureCodeSchema = z.enum([
   'unknown'
 ]);
 
-/** Repair record emitted when fallback resolution confidence is low. */
+/** Repair record emitted when no locator safely resolves a target. */
 export const RepairRecordSchema = z.object({
   stepId: EntityIdSchema,
   stepType: WorkflowStepTypeSchema,
   failureCode: FailureCodeSchema,
   attemptedLocators: z.array(LocatorSchema),
+  locatorAttempts: z.array(z.object({
+    locator: LocatorSchema,
+    matchCount: z.number().int().nonnegative()
+  })).optional(),
   resolvedLocator: LocatorSchema.optional(),
   confidence: z.number().min(0).max(1),
   screenshot: z.string().optional(),

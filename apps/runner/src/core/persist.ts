@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type {
   JsonValue,
   Locator,
+  RepairRecord,
   RunEvent,
   RunGraph,
   TruthClassification,
@@ -25,6 +26,7 @@ interface StepAccumulator {
   expectedTruthId?: string;
   errorCode?: string;
   errorMessage?: string;
+  repairRecord?: RepairRecord;
 }
 
 /**
@@ -98,6 +100,7 @@ export async function buildRunGraph(
           acc.durationMs = event.durationMs;
           acc.errorCode = event.error.code;
           acc.errorMessage = event.error.message;
+          if (event.error.repairRecord) acc.repairRecord = event.error.repairRecord;
           if (event.truthClassification) acc.truthClassification = event.truthClassification;
           if (event.resolvedTruthId) acc.resolvedTruthId = event.resolvedTruthId;
           if (event.expectedTruthId) acc.expectedTruthId = event.expectedTruthId;
@@ -160,7 +163,9 @@ export async function buildRunGraph(
         sourceEventIds: [],
         notes: [],
         tags: [],
-        extra: {}
+        extra: acc.repairRecord
+          ? { repairRecord: JSON.parse(JSON.stringify(acc.repairRecord)) as JsonValue }
+          : {}
       }
     })),
     artifacts: []

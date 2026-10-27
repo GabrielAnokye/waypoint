@@ -34,7 +34,6 @@ export interface LocatablePage {
 
 export interface LocatableHandle {
   count(): Promise<number>;
-  first(): LocatableHandle;
 }
 
 export interface ResolveResult {
@@ -48,6 +47,14 @@ export interface ResolveFailure {
   failureCode: FailureCode;
   attemptedLocators: Locator[];
   repairRecord: RepairRecord;
+}
+
+/** Preserve resolver diagnostics across the launcher/executor boundary. */
+export class LocatorResolutionError extends Error {
+  constructor(readonly failure: ResolveFailure) {
+    super(`${failure.failureCode}: ${failure.repairRecord.suggestion}`);
+    this.name = 'LocatorResolutionError';
+  }
 }
 
 // ---- Locator confidence scores ----
@@ -157,48 +164,37 @@ export async function resolveLocator(
     ? candidateLocators.filter((l) => getLocatorFamily(l.kind) === options.allowedFamily)
     : candidateLocators;
   const attempted: Locator[] = [];
+  const locatorAttempts: NonNullable<RepairRecord['locatorAttempts']> = [];
 
   for (let i = 0; i < allLocators.length; i++) {
     const loc = allLocators[i]!;
     attempted.push(loc);
 
+    // Coordinates may be measured independently, but cannot disambiguate an
+    // element locator. Never turn a positional fallback into a guessed click.
     const handle = toPlaywrightLocator(frameCtx, loc);
-    const count = await handle.count();
+    const count = loc.kind === 'coordinates' ? 0 : await handle.count();
+    locatorAttempts.push({ locator: loc, matchCount: count });
 
     if (count === 1) {
       return {
-        handle: handle.first(),
+        // Retain strictness if the DOM becomes ambiguous before the action.
+        handle,
         resolvedLocator: loc,
         usedFallback: i > 0 || (options.allowedFamily !== undefined && loc !== primary),
         confidence: LOCATOR_CONFIDENCE[loc.kind] * (frameMismatchRisk ? 0.8 : 1)
       };
     }
 
-    if (count > 1) {
-      // Ambiguous — if this is an intent or testContract locator, take the first match
-      // but flag it. For structural/coordinate locators, skip to next fallback.
-      const family = getLocatorFamily(loc.kind);
-      const isSemantic = family === 'intent' || family === 'testContract';
-      if (isSemantic && count <= 3) {
-        // Accept first match but reduce confidence
-        return {
-          handle: handle.first(),
-          resolvedLocator: loc,
-          usedFallback: i > 0 || (options.allowedFamily !== undefined && loc !== primary),
-          confidence: LOCATOR_CONFIDENCE[loc.kind] * 0.5
-        };
-      }
-      // Too many matches or non-semantic — try next fallback
-      continue;
-    }
-    // count === 0 — not found, try next
+    // Missing or ambiguous: only a subsequent unique locator may resolve it.
   }
 
   // Frame mismatch check — if we have a frame path and nothing resolved,
   // the frame structure may have changed
-  const failureCode: FailureCode = frameMismatchRisk
-    ? 'frame_mismatch'
-    : 'locator_not_found';
+  const ambiguous = locatorAttempts.some((attempt) => attempt.matchCount > 1);
+  const failureCode: FailureCode = ambiguous
+    ? 'ambiguous_locator'
+    : frameMismatchRisk ? 'frame_mismatch' : 'locator_not_found';
 
   return {
     failureCode,
@@ -208,8 +204,10 @@ export async function resolveLocator(
       stepType: step.type,
       failureCode,
       attemptedLocators: attempted,
+      locatorAttempts,
       confidence: 0,
-      suggestion: `None of the ${attempted.length} locator(s) matched any element. ` +
+      suggestion: `None of the ${attempted.length} locator(s) uniquely identified an element` +
+        (ambiguous ? '; multiple matches remain. ' : '. ') +
         `Consider rebinding this step to a new element.`,
       timestamp: options.timestamp ?? new Date().toISOString(),
       ...(options.screenshotPath ? { screenshot: options.screenshotPath } : {})
@@ -227,6 +225,7 @@ export function isResolveFailure(
  * Classify a step execution error into a structured failure code.
  */
 export function classifyError(error: unknown, _step: WorkflowStep): FailureCode {
+  if (error instanceof LocatorResolutionError) return error.failure.failureCode;
   const msg = error instanceof Error ? error.message : String(error);
   const lower = msg.toLowerCase();
 
@@ -235,7 +234,7 @@ export function classifyError(error: unknown, _step: WorkflowStep): FailureCode 
   if (lower.includes('navigation') || lower.includes('net::err_')) return 'navigation_mismatch';
   if (lower.includes('401') || lower.includes('403') || lower.includes('unauthorized') || lower.includes('login')) return 'auth_expired';
   if (lower.includes('blocked') || lower.includes('captcha') || lower.includes('access denied')) return 'blocked_page';
-  if (lower.includes('strict mode') || (lower.includes('resolved to') && lower.includes('elements'))) return 'ambiguous_locator';
+  if (lower.includes('ambiguous_locator') || lower.includes('strict mode') || (lower.includes('resolved to') && lower.includes('elements'))) return 'ambiguous_locator';
   if (
     lower.includes('not found') ||
     lower.includes('not_found') ||

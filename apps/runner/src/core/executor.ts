@@ -10,7 +10,7 @@ import type {
   WorkflowStep
 } from '@waypoint/shared-types';
 
-import { classifyError, computeRetryDelay } from './locate.js';
+import { classifyError, computeRetryDelay, LocatorResolutionError } from './locate.js';
 
 export interface ExecuteStepContext {
   runId: string;
@@ -190,7 +190,7 @@ export async function* executeWorkflow(
         let truthClassification: TruthClassification | undefined =
           result && 'truthClassification' in result ? result.truthClassification : undefined;
 
-        if (!truthClassification && (expectedTruthId !== undefined || resolvedTruthId !== undefined)) {
+        if (!truthClassification && expectedTruthId !== undefined) {
           if (expectedTruthId && resolvedTruthId && expectedTruthId === resolvedTruthId) {
             truthClassification = 'true_positive';
           } else {
@@ -249,10 +249,13 @@ export async function* executeWorkflow(
         finalError = {
           code: failureCode,
           message,
-          stepId: step.id
+          stepId: step.id,
+          ...(err instanceof LocatorResolutionError
+            ? { repairRecord: err.failure.repairRecord }
+            : {})
         };
         let failTruthClassification: TruthClassification | undefined;
-        if (failureCode === 'locator_not_found') {
+        if (failureCode === 'locator_not_found' || failureCode === 'ambiguous_locator') {
           failTruthClassification = 'true_negative';
         }
 

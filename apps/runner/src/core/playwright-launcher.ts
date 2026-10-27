@@ -13,7 +13,7 @@ import {
   type Page
 } from 'playwright';
 
-import type { Locator, WorkflowStep } from '@waypoint/shared-types';
+import type { Locator, LocatorFamily, WorkflowStep } from '@waypoint/shared-types';
 
 import {
   ensureDebugBrowser,
@@ -31,6 +31,7 @@ import type {
 } from './executor.js';
 import {
   resolveLocator,
+  LocatorResolutionError,
   isResolveFailure,
   type LocatablePage,
   type LocatableHandle
@@ -56,7 +57,6 @@ function adaptPage(page: Page): LocatablePage {
 function adaptHandle(loc: PwLocator): LocatableHandle {
   return {
     count: () => loc.count(),
-    first: () => adaptHandle(loc.first()),
     // Expose the underlying Playwright locator for action methods
     _pw: loc
   } as LocatableHandle & { _pw: PwLocator };
@@ -87,6 +87,8 @@ function getPwLocator(handle: LocatableHandle): PwLocator {
 export interface PlaywrightLauncherOptions {
   /** Launch browser in headless mode. Default: false (visible). */
   headless?: boolean;
+  /** Restrict benchmark execution to one family; omit for normal replay. */
+  allowedFamily?: LocatorFamily;
   /** Slow down actions by this many ms for visibility. Default: 0. */
   slowMo?: number;
   /** Auth profile storage state path (for pre-authenticated sessions). */
@@ -409,17 +411,20 @@ export class PlaywrightBrowserLauncher implements BrowserLauncher {
     // Coordinates are positions, not element identities. They cannot go
     // through resolveLocator (which would try to find a DOM element) so
     // we act positionally and verify what was actually hit.
-    if (step.primaryLocator.kind === 'coordinates') {
-      return this.executeCoordinateClick(page, step, step.primaryLocator);
+    const coordinate = this.options.allowedFamily === 'coordinate'
+      ? [step.primaryLocator, ...step.fallbackLocators].find((loc) => loc.kind === 'coordinates')
+      : this.options.allowedFamily === undefined && step.primaryLocator.kind === 'coordinates'
+        ? step.primaryLocator : undefined;
+    if (coordinate?.kind === 'coordinates') {
+      return this.executeCoordinateClick(page, step, coordinate);
     }
 
     const adapted = adaptPage(page);
-    const result = await resolveLocator(adapted, step);
+    const result = await resolveLocator(adapted, step, this.options.allowedFamily
+      ? { allowedFamily: this.options.allowedFamily } : {});
 
     if (isResolveFailure(result)) {
-      throw new Error(
-        `Click failed: ${result.failureCode} — ${result.repairRecord.suggestion}`
-      );
+      throw new LocatorResolutionError(result);
     }
 
     const pwLocator = getPwLocator(result.handle);
@@ -497,7 +502,7 @@ export class PlaywrightBrowserLauncher implements BrowserLauncher {
 
     return {
       resolvedLocator: { kind: 'coordinates', x: coord.x, y: coord.y },
-      usedFallback: false,
+      usedFallback: coord !== step.primaryLocator,
       resolvedTruthId: hitInfo.truthId
     };
   }
@@ -508,12 +513,11 @@ export class PlaywrightBrowserLauncher implements BrowserLauncher {
     timeout: number
   ): Promise<StepExecutionResult> {
     const adapted = adaptPage(page);
-    const result = await resolveLocator(adapted, step);
+    const result = await resolveLocator(adapted, step, this.options.allowedFamily
+      ? { allowedFamily: this.options.allowedFamily } : {});
 
     if (isResolveFailure(result)) {
-      throw new Error(
-        `Type failed: ${result.failureCode} — ${result.repairRecord.suggestion}`
-      );
+      throw new LocatorResolutionError(result);
     }
 
     const pwLocator = getPwLocator(result.handle);
@@ -537,12 +541,11 @@ export class PlaywrightBrowserLauncher implements BrowserLauncher {
     timeout: number
   ): Promise<StepExecutionResult> {
     const adapted = adaptPage(page);
-    const result = await resolveLocator(adapted, step);
+    const result = await resolveLocator(adapted, step, this.options.allowedFamily
+      ? { allowedFamily: this.options.allowedFamily } : {});
 
     if (isResolveFailure(result)) {
-      throw new Error(
-        `Select failed: ${result.failureCode} — ${result.repairRecord.suggestion}`
-      );
+      throw new LocatorResolutionError(result);
     }
 
     const pwLocator = getPwLocator(result.handle);
@@ -574,12 +577,11 @@ export class PlaywrightBrowserLauncher implements BrowserLauncher {
     // If the step has a target locator, focus the element first
     if ('primaryLocator' in step && step.primaryLocator) {
       const adapted = adaptPage(page);
-      const result = await resolveLocator(adapted, step);
+      const result = await resolveLocator(adapted, step, this.options.allowedFamily
+      ? { allowedFamily: this.options.allowedFamily } : {});
 
       if (isResolveFailure(result)) {
-        throw new Error(
-          `Press failed: ${result.failureCode} — ${result.repairRecord.suggestion}`
-        );
+        throw new LocatorResolutionError(result);
       }
 
       const pwLocator = getPwLocator(result.handle);
@@ -608,12 +610,11 @@ export class PlaywrightBrowserLauncher implements BrowserLauncher {
     timeout: number
   ): Promise<StepExecutionResult> {
     const adapted = adaptPage(page);
-    const result = await resolveLocator(adapted, step);
+    const result = await resolveLocator(adapted, step, this.options.allowedFamily
+      ? { allowedFamily: this.options.allowedFamily } : {});
 
     if (isResolveFailure(result)) {
-      throw new Error(
-        `WaitFor failed: ${result.failureCode} — ${result.repairRecord.suggestion}`
-      );
+      throw new LocatorResolutionError(result);
     }
 
     const pwLocator = getPwLocator(result.handle);
@@ -655,12 +656,11 @@ export class PlaywrightBrowserLauncher implements BrowserLauncher {
     timeout: number
   ): Promise<StepExecutionResult> {
     const adapted = adaptPage(page);
-    const result = await resolveLocator(adapted, step);
+    const result = await resolveLocator(adapted, step, this.options.allowedFamily
+      ? { allowedFamily: this.options.allowedFamily } : {});
 
     if (isResolveFailure(result)) {
-      throw new Error(
-        `Assert failed: ${result.failureCode} — ${result.repairRecord.suggestion}`
-      );
+      throw new LocatorResolutionError(result);
     }
 
     const pwLocator = getPwLocator(result.handle);
@@ -817,6 +817,7 @@ export class PlaywrightBrowserLauncher implements BrowserLauncher {
 
   getExecutionConditions(): ExecutionConditions {
     return {
+      ...(this.options.allowedFamily ? { allowedFamily: this.options.allowedFamily } : {}),
       headless: Boolean(this.options.headless),
       slowMo: this.options.slowMo ?? 0,
       contextIsolation: this.options.cdpEndpoint ? 'attached' : 'isolated',

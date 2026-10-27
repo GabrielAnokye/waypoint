@@ -20,6 +20,20 @@ function session(events: RawRecordedEventInput[]): RecordingSessionInput {
 }
 
 describe('compileRecording — normalization pipeline', () => {
+  it('keeps rapid Alpha/Beta/Gamma clicks with shared semantics and distinct fallbacks', () => {
+    const wf = compileRecording(session(['alpha', 'beta', 'gamma'].map((name, index) => ({
+      eventId: `delete_${name}`, type: 'click', atMs: index * 100, tabId: 't1', button: 'left',
+      target: {
+        primaryLocator: { kind: 'role', role: 'button', name: 'Delete' },
+        fallbackLocators: [{ kind: 'css', selector: `div:nth-of-type(${index + 1}) > button` }]
+      }
+    }))));
+    const clicks = wf.steps.filter(step => step.type === 'click');
+    expect(clicks).toHaveLength(3);
+    expect(clicks.map(step => step.debug.sourceEventIds)).toEqual([
+      ['delete_alpha'], ['delete_beta'], ['delete_gamma']
+    ]);
+  });
   it('1. typing + submit → single type then press(Enter)', () => {
     const inputTarget = {
       primaryLocator: { kind: 'role', role: 'textbox', name: 'Email' },
@@ -391,5 +405,15 @@ describe('compileRecording — normalization pipeline', () => {
     const step = wf.steps[0]!;
     expect('dataTruthId' in step && step.dataTruthId).toBe('submit-order-alpha');
   });
-});
 
+  it('preserves the next target identity on an inferred wait', () => {
+    const wf = compileRecording(session([
+      { eventId: 'nav', type: 'navigate', atMs: 0, tabId: 't1', url: 'https://example.com' },
+      { eventId: 'click', type: 'click', atMs: 100, tabId: 't1', button: 'left', target: {
+        primaryLocator: { kind: 'role', role: 'button', name: 'Delete' },
+        fallbackLocators: [], dataTruthId: 'delete-beta'
+      } }
+    ]));
+    expect(wf.steps.find(step => step.type === 'waitFor')?.dataTruthId).toBe('delete-beta');
+  });
+});

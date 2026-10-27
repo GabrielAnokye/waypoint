@@ -11,6 +11,8 @@ import {
 } from '@waypoint/shared-types';
 
 import { executeWorkflow, type BrowserLauncher } from './executor.js';
+import { LocatorResolutionError } from './locate.js';
+import { buildRunGraph } from './persist.js';
 
 function makeWorkflow(steps: WorkflowStep[]): Workflow {
   return {
@@ -183,6 +185,38 @@ describe('executeWorkflow', () => {
   });
 
   describe('Ground-Truth Comparator', () => {
+    it('retains an observed identity without inventing correctness when the recording has no oracle', async () => {
+      const events = await collectEvents(executeWorkflow(makeWorkflow([clickStep('s1')]), {
+        launcher: { async executeStep() { return { resolvedTruthId: 'delete-alpha' }; } }
+      }));
+      const succeeded = events.find(e => e.kind === 'step.succeeded')!;
+      expect(succeeded.resolvedTruthId).toBe('delete-alpha');
+      expect(succeeded.expectedTruthId).toBeUndefined();
+      expect(succeeded.truthClassification).toBeUndefined();
+    });
+    it('persists structured ambiguity, expected identity, and abstention; stops later steps', async () => {
+      const wf = makeWorkflow([clickStep('s1', { dataTruthId: 'delete-beta' }), clickStep('s2')]);
+      const primary = { kind: 'role', role: 'button', name: 'Delete' } as const;
+      const repairRecord = {
+        stepId: 's1', stepType: 'click' as const, failureCode: 'ambiguous_locator' as const,
+        attemptedLocators: [primary], locatorAttempts: [{ locator: primary, matchCount: 3 }],
+        confidence: 0, timestamp: '2026-10-27T12:00:00.000Z', suggestion: 'Rebind this step.'
+      };
+      const launcher: BrowserLauncher = {
+        async executeStep(step) {
+          expect(step.id).toBe('s1');
+          throw new LocatorResolutionError({ failureCode: 'ambiguous_locator', attemptedLocators: [primary], repairRecord });
+        }
+      };
+      const graph = await buildRunGraph(wf, executeWorkflow(wf, { launcher }), { workflowVersionId: 'wf_test_v1' });
+      expect(graph.run.status).toBe('failed');
+      expect(graph.steps).toHaveLength(1);
+      expect(graph.steps[0]).toMatchObject({
+        errorCode: 'ambiguous_locator', truthClassification: 'true_negative', expectedTruthId: 'delete-beta',
+        debug: { extra: { repairRecord } }
+      });
+      expect(graph.steps[0]?.resolvedTruthId).toBeUndefined();
+    });
     it('classifies step as true_positive when resolved data-truth-id matches expected truth ID', async () => {
       const wf = makeWorkflow([
         clickStep('s1', { dataTruthId: 'submit-order-alpha' })
@@ -244,4 +278,3 @@ describe('executeWorkflow', () => {
     });
   });
 });
-

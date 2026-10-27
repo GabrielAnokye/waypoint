@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { Locator, WorkflowStep } from '@waypoint/shared-types';
 
@@ -16,8 +16,7 @@ import {
 
 function mockHandle(count: number): LocatableHandle {
   return {
-    count: async () => count,
-    first() { return this; }
+    count: async () => count
   };
 }
 
@@ -51,7 +50,7 @@ function mockPage(results: Map<string, number>): LocatablePage {
 function makeClickStep(
   primary: Locator,
   fallbacks: Locator[] = []
-): WorkflowStep {
+): Extract<WorkflowStep, { type: 'click' }> {
   return {
     id: 'step_1',
     type: 'click',
@@ -100,7 +99,7 @@ describe('resolveLocator', () => {
     }
   });
 
-  it('duplicated buttons — detects ambiguity and flags low confidence', async () => {
+  it('duplicated buttons — skips ambiguity and uses the unique recorded fallback', async () => {
     // Two "Delete" buttons on the page
     const page = mockPage(new Map([
       ['role:button:Delete', 2],          // ambiguous — 2 matches
@@ -113,10 +112,58 @@ describe('resolveLocator', () => {
     const result = await resolveLocator(page, step);
     expect(isResolveFailure(result)).toBe(false);
     if (!isResolveFailure(result)) {
-      // Should fall through to the CSS locator since role had 2 matches (semantic, <=3)
-      // With 2 matches the semantic locator is accepted at low confidence
-      expect(result.confidence).toBeLessThan(0.6);
+      expect(result.resolvedLocator).toEqual({ kind: 'css', selector: '[data-testid="del-1"]' });
+      expect(result.usedFallback).toBe(true);
+      expect(result.confidence).toBe(0.6);
     }
+  });
+
+  it.each([2, 3, 4])('refuses %i matches in every locator family', async (count) => {
+    const page = mockPage(new Map([
+      ['role:button:Delete', count], ['testId:delete', count],
+      ['locator:.delete', count], ['locator:xpath=//button', count]
+    ]));
+    const step = makeClickStep({ kind: 'role', role: 'button', name: 'Delete' }, [
+      { kind: 'testId', testId: 'delete' }, { kind: 'css', selector: '.delete' },
+      { kind: 'xpath', selector: '//button' }, { kind: 'coordinates', x: 10, y: 10 }
+    ]);
+    const result = await resolveLocator(page, step);
+    expect(result).toMatchObject({
+      failureCode: 'ambiguous_locator', attemptedLocators: [step.primaryLocator, ...step.fallbackLocators],
+      repairRecord: { failureCode: 'ambiguous_locator', confidence: 0 }
+    });
+    if (!isResolveFailure(result)) throw new Error('expected abstention');
+    expect(result.repairRecord.locatorAttempts?.map(a => a.matchCount)).toEqual([count, count, count, count, 0]);
+  });
+
+  it('continues past ambiguous fallbacks and retains the strict handle', async () => {
+    const page = mockPage(new Map([['role:button:Delete', 3], ['testId:delete', 2]]));
+    const unique = { count: async () => 1, first: vi.fn(() => { throw new Error('must not narrow'); }) };
+    page.locator = () => unique;
+    const result = await resolveLocator(page, makeClickStep(
+      { kind: 'role', role: 'button', name: 'Delete' },
+      [{ kind: 'testId', testId: 'delete' }, { kind: 'css', selector: '#beta' }]
+    ));
+    expect(result).toMatchObject({ handle: unique, resolvedLocator: { kind: 'css', selector: '#beta' } });
+    expect(unique.first).not.toHaveBeenCalled();
+  });
+
+  it('does not credit intent with a unique structural or test-contract fallback', async () => {
+    const page = mockPage(new Map([
+      ['role:button:Delete', 3], ['testId:beta', 1], ['locator:#beta', 1]
+    ]));
+    const step = makeClickStep({ kind: 'role', role: 'button', name: 'Delete' }, [
+      { kind: 'testId', testId: 'beta' }, { kind: 'css', selector: '#beta' }
+    ]);
+    expect(await resolveLocator(page, step, { allowedFamily: 'intent' })).toMatchObject({
+      failureCode: 'ambiguous_locator', attemptedLocators: [step.primaryLocator]
+    });
+    for (const allowedFamily of ['testContract', 'structural'] as const) {
+      expect(await resolveLocator(page, step, { allowedFamily })).toMatchObject({ usedFallback: true });
+    }
+    expect(await resolveLocator(page, step, { allowedFamily: 'coordinate' })).toMatchObject({
+      failureCode: 'locator_not_found', attemptedLocators: []
+    });
   });
 
   it('produces a repair record when no locator matches', async () => {
