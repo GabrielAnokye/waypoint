@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import type {
+  AttachedTarget,
   FailureCode,
   Locator,
   RepairRecord,
@@ -72,8 +73,9 @@ export interface BrowserLauncher {
 /** Where an attached run should play. Launchers that start clean ignore it. */
 export interface RunTargetOptions {
   /** The tab the user asked to replay in (active tab beside the side panel). */
-  targetUrl?: string;
-  /** The URL the workflow was recorded on, as a fallback when no target is given. */
+  attachedTarget?: AttachedTarget;
+  reloadBeforeRun?: boolean;
+  /** Starting URL, used only for navigation safety and optional reload. */
   recordedUrl?: string;
 }
 

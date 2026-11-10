@@ -1,5 +1,6 @@
 import { handleAlarm, rehydrateAlarms } from './scheduler.js';
 import { isRecordableUrl } from './recordable-url.js';
+import { captureAttachedTarget } from './attached-target.js';
 
 chrome.runtime.onInstalled.addListener(() => {
   console.info('[Waypoint] extension scaffold installed.');
@@ -43,6 +44,13 @@ function generateId(prefix: string): string {
 // ---- Message handler ----
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message?.type === 'waypoint.playback.captureTarget') {
+    void captureAttachedTarget(message.windowId).then(
+      (payload) => sendResponse({ ok: true, payload }),
+      (error) => sendResponse({ ok: false, message: error instanceof Error ? error.message : 'Cannot identify the selected tab.' })
+    );
+    return true;
+  }
   if (message?.type === 'waypoint.ping') {
     sendResponse({ ok: true, source: 'service-worker' });
     return false;

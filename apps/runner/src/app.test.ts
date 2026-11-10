@@ -4,7 +4,8 @@ import { openWaypointDatabase } from '@waypoint/db';
 import { HealthResponseSchema, ScheduleSchema } from '@waypoint/shared-types';
 
 import { buildRunnerServer } from './app.js';
-import type { BrowserLauncher } from './core/executor.js';
+import type { BrowserLauncher, RunTargetOptions } from './core/executor.js';
+import { AttachedBrowserError } from './core/debug-browser.js';
 
 const baseEnv = {
   RUNNER_HOST: '127.0.0.1',
@@ -64,6 +65,8 @@ const sampleRecording = {
     }
   ]
 };
+
+const attachedTarget = { tabId: 1, windowId: 1, url: 'https://example.com', token: '00000000-0000-4000-8000-000000000001' };
 
 async function waitForRunStatus(
   app: ReturnType<typeof buildRunnerServer>['app'],
@@ -141,7 +144,7 @@ describe('runner workflows + runs', () => {
       const start = await r.app.inject({
         method: 'POST',
         url: `/workflows/${workflowId}/run`,
-        payload: { engine: 'attached' }
+        payload: { engine: 'attached', attachedTarget: { tabId: 1, windowId: 1, url: 'https://example.com', token: '00000000-0000-4000-8000-000000000001' } }
       });
 
       // Falling back to the isolated launcher would run somewhere the caller
@@ -156,12 +159,14 @@ describe('runner workflows + runs', () => {
   it('routes an attached run to the attached launcher when one is configured', async () => {
     const repo = openWaypointDatabase(':memory:').repository;
     const used: string[] = [];
+    let receivedTarget: RunTargetOptions | undefined;
     const isolated: BrowserLauncher = {
       async executeStep() {
         used.push('isolated');
       }
     };
     const attached: BrowserLauncher = {
+      async resetForRun(options) { receivedTarget = options; },
       async executeStep() {
         used.push('attached');
       }
@@ -183,16 +188,71 @@ describe('runner workflows + runs', () => {
       const start = await r.app.inject({
         method: 'POST',
         url: `/workflows/${workflowId}/run`,
-        payload: { engine: 'attached' }
+        payload: { engine: 'attached', attachedTarget, reloadBeforeRun: true }
       });
       expect(start.statusCode).toBe(200);
       await waitForRunStatus(r.app, (start.json() as { runId: string }).runId);
 
       expect(used).toContain('attached');
       expect(used).not.toContain('isolated');
+      expect(receivedTarget).toEqual({ attachedTarget, reloadBeforeRun: true, recordedUrl: 'https://example.com' });
     } finally {
       await r.app.close();
     }
+  });
+
+  it('rejects incomplete or conflicting execution-mode requests before touching a launcher', async () => {
+    const repo = openWaypointDatabase(':memory:').repository;
+    const touched: string[] = [];
+    const launcher: BrowserLauncher = {
+      async resetForRun() { touched.push('reset'); },
+      async executeStep() { touched.push('step'); }
+    };
+    const r = buildRunnerServer(baseEnv, { repository: repo, browserLauncher: launcher, attachedBrowserLauncher: launcher });
+    await r.app.ready();
+    try {
+      const save = await r.app.inject({ method: 'POST', url: '/recordings', payload: sampleRecording });
+      const url = `/workflows/${save.json().workflowId}/run`;
+      for (const payload of [
+        { engine: 'attached', targetUrl: 'https://example.com' },
+        { engine: 'isolated', attachedTarget },
+        { engine: 'isolated', reloadBeforeRun: true }
+      ]) {
+        expect((await r.app.inject({ method: 'POST', url, payload })).statusCode).toBe(400);
+      }
+      expect(touched).toEqual([]);
+    } finally { await r.app.close(); }
+  });
+
+  it('returns actionable attachment errors, never falls back, and releases the busy lock for retry', async () => {
+    const repo = openWaypointDatabase(':memory:').repository;
+    const used: string[] = [];
+    let resets = 0;
+    const r = buildRunnerServer(baseEnv, {
+      repository: repo,
+      browserLauncher: { async executeStep() { used.push('isolated'); } },
+      attachedBrowserLauncher: {
+        async resetForRun() {
+          if (++resets === 1) throw new AttachedBrowserError('attached_browser_unavailable', 'Start a debugging browser explicitly.');
+        },
+        async executeStep() { used.push('attached'); }
+      }
+    });
+    await r.app.ready();
+    try {
+      const save = await r.app.inject({ method: 'POST', url: '/recordings', payload: sampleRecording });
+      const url = `/workflows/${save.json().workflowId}/run`;
+      const payload = { engine: 'attached', attachedTarget };
+      const failed = await r.app.inject({ method: 'POST', url, payload });
+      expect(failed.statusCode).toBe(409);
+      expect(failed.json()).toEqual({ error: 'attached_browser_unavailable', message: 'Start a debugging browser explicitly.' });
+      expect(used).toEqual([]);
+      const retry = await r.app.inject({ method: 'POST', url, payload });
+      expect(retry.statusCode).toBe(200);
+      await waitForRunStatus(r.app, retry.json().runId);
+      expect(used).toContain('attached');
+      expect(used).not.toContain('isolated');
+    } finally { await r.app.close(); }
   });
 
   it('refuses a second run on a launcher that is still busy, then accepts one after', async () => {
@@ -321,7 +381,8 @@ describe('runner workflows + runs', () => {
         headless: true,
         slowMo: 100,
         contextIsolation: 'isolated',
-        browserEngine: 'chromium'
+        browserEngine: 'chromium',
+        researchEligible: true
       });
     } finally {
       await r.app.close();

@@ -20,41 +20,26 @@ const paths = ensureRuntimeDirectories(createRuntimePaths());
 const database = openWaypointDatabase(paths.databaseFile);
 
 function createLauncher(): BrowserLauncher {
-  switch (env.BROWSER_ENGINE) {
-    case 'chromium':
-      return createPlaywrightLauncher({
-        headless: env.BROWSER_HEADLESS,
-        slowMo: env.BROWSER_SLOW_MO,
-        keepOpenMs: env.BROWSER_KEEP_OPEN_MS
-      });
-    case 'cdp':
-      // Loud on purpose. Data collected in this mode is not reproducible, and
-      // the failure is silent otherwise — runs still report success.
-      console.warn(
-        '[waypoint] BROWSER_ENGINE=cdp — attaching to an existing Chrome at ' +
-          `${env.BROWSER_CDP_ENDPOINT}. Runs inherit that browser's state and ` +
-          'are NOT reproducible. Demo only; do not collect experiment data in ' +
-          'this mode. See docs/EXPERIMENT-INTEGRITY.md.'
-      );
-      return createPlaywrightLauncher({
-        slowMo: env.BROWSER_SLOW_MO,
-        keepOpenMs: env.BROWSER_KEEP_OPEN_MS,
-        cdpEndpoint: env.BROWSER_CDP_ENDPOINT
-      });
-    case 'noop':
-      return noopBrowserLauncher;
+  if (env.BROWSER_ENGINE === 'noop') return noopBrowserLauncher;
+  if (env.BROWSER_ENGINE === 'cdp') {
+    console.warn('[waypoint] BROWSER_ENGINE=cdp no longer changes Run clean. Use engine=attached with exact tab identity for CDP playback.');
   }
+  return createPlaywrightLauncher({
+    mode: 'isolated', headless: env.BROWSER_HEADLESS,
+    slowMo: env.BROWSER_SLOW_MO, keepOpenMs: env.BROWSER_KEEP_OPEN_MS
+  });
 }
 
 const launcher: BrowserLauncher = createLauncher();
 
 /**
  * The attached launcher is always available alongside the default one, so the
- * UI can offer "run in my browser" without restarting the runner in a
+ * UI can offer "Run in open browser" without restarting the runner in a
  * different mode. Constructing it is free — it does not connect to anything
  * until a run actually asks for it.
  */
 const attachedLauncher = createPlaywrightLauncher({
+  mode: 'attached',
   slowMo: env.BROWSER_SLOW_MO,
   keepOpenMs: 0,
   cdpEndpoint: env.BROWSER_CDP_ENDPOINT

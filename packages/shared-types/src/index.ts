@@ -832,15 +832,31 @@ export const SaveRecordingResponseSchema = z.object({
  */
 export const RunEngineSchema = z.enum(['isolated', 'attached']);
 
+/** Correlates an extension tab with its existing CDP Page; never a locator. */
+export const ATTACHED_TARGET_ATTRIBUTE = 'data-waypoint-attach-token';
+export const AttachedTargetSchema = z.object({
+  tabId: z.number().int().nonnegative(),
+  windowId: z.number().int().nonnegative(),
+  url: z.string().url(),
+  documentId: z.string().min(1).optional(),
+  token: z.string().uuid()
+});
+export type AttachedTarget = z.infer<typeof AttachedTargetSchema>;
+
 export const StartRunRequestSchema = z.object({
   authProfileId: EntityIdSchema.optional(),
   debugMode: z.boolean().optional(),
   engine: RunEngineSchema.optional(),
-  /**
-   * URL of the tab an `attached` run should replay in — the tab the user is
-   * looking at next to the side panel. Ignored by the isolated engine.
-   */
-  targetUrl: z.string().url().optional()
+  attachedTarget: AttachedTargetSchema.optional(),
+  reloadBeforeRun: z.boolean().optional()
+}).superRefine((request, ctx) => {
+  if (request.engine === 'attached' && !request.attachedTarget) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['attachedTarget'],
+      message: 'Select a webpage in the side panel window and run again. Attached playback requires exact tab identity.' });
+  }
+  if (request.engine !== 'attached' && (request.attachedTarget || request.reloadBeforeRun)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['engine'], message: 'Tab selection and reload apply only to attached playback.' });
+  }
 });
 
 export const StartRunResponseSchema = z.object({

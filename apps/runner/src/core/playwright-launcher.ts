@@ -13,13 +13,13 @@ import {
   type Page
 } from 'playwright';
 
-import type { Locator, LocatorFamily, WorkflowStep } from '@waypoint/shared-types';
+import { ATTACHED_TARGET_ATTRIBUTE, type Locator, type LocatorFamily, type RunEngine, type WorkflowStep } from '@waypoint/shared-types';
 
 import {
-  ensureDebugBrowser,
-  ensureDebugPage,
+  AttachedBrowserError,
+  assertSafeAttachedNavigation,
+  samePageUrl,
   explainAttachFailure,
-  isNoWindowError,
   selectTargetPage
 } from './debug-browser.js';
 import type {
@@ -85,6 +85,8 @@ function getPwLocator(handle: LocatableHandle): PwLocator {
 // ---- PlaywrightBrowserLauncher ----
 
 export interface PlaywrightLauncherOptions {
+  /** Attached mode may only connect to the exact selected existing tab. */
+  mode?: RunEngine;
   /** Launch browser in headless mode. Default: false (visible). */
   headless?: boolean;
   /** Restrict benchmark execution to one family; omit for normal replay. */
@@ -99,8 +101,8 @@ export interface PlaywrightLauncherOptions {
   keepOpenMs?: number;
   /**
    * CDP endpoint of an already-running Chrome to attach to, e.g.
-   * `http://localhost:9222`. When set, the launcher drives that browser's
-   * existing tab instead of launching its own.
+   * `http://localhost:9222`. Used only with mode='attached'. The exact
+   * selected tab must already exist in that browser.
    *
    * Demo and debugging only. Attaching inherits whatever state that browser
    * already has — cookies, storage, scroll position, other extensions
@@ -125,9 +127,12 @@ export class PlaywrightBrowserLauncher implements BrowserLauncher {
   private attached = false;
   /** Which tab the current attached run should replay in. Set per run. */
   private runTarget: RunTargetOptions = {};
+  private attachedTargetId: string | undefined;
+  private initialPageUrl: string | undefined;
 
   constructor(options: PlaywrightLauncherOptions = {}) {
     this.options = {
+      mode: 'isolated',
       headless: false,
       slowMo: 50,
       ...options
@@ -137,7 +142,8 @@ export class PlaywrightBrowserLauncher implements BrowserLauncher {
   private async ensureBrowser(): Promise<BrowserContext> {
     if (this.context) return this.context;
 
-    if (this.options.cdpEndpoint) {
+    if (this.options.mode === 'attached') {
+      if (!this.options.cdpEndpoint) throw new AttachedBrowserError('attached_browser_unavailable', 'No CDP endpoint is configured. Configure BROWSER_CDP_ENDPOINT for the browser containing the selected tab.');
       return this.attachOverCdp(this.options.cdpEndpoint);
     }
 
@@ -178,66 +184,41 @@ export class PlaywrightBrowserLauncher implements BrowserLauncher {
    * page carries whatever state the previous run or the user left behind.
    */
   private async attachOverCdp(endpoint: string): Promise<BrowserContext> {
-    // Start a debuggable browser if none is listening. The flag it needs only
-    // applies at launch, so there is no way to opt an already-open Chrome in;
-    // launching one here is what makes "run in my browser" a single click
-    // rather than a prerequisite the user has to remember.
-    const launched = await ensureDebugBrowser({ endpoint });
-    if (launched) {
-      console.info(
-        `[waypoint] Opened a browser at ${endpoint}. It stays open between ` +
-          'runs, so page state carries over.'
-      );
-    }
-
-    // A Chrome whose last window was closed keeps running and keeps answering
-    // on the debug port, but refuses to be attached to. Give it a window first.
-    if (await ensureDebugPage(endpoint)) {
-      console.info(
-        `[waypoint] Chrome at ${endpoint} had no open window; opened a tab so ` +
-          'the run has something to attach to.'
-      );
-    }
-
+    const target = this.runTarget.attachedTarget;
+    if (!target) throw new AttachedBrowserError('attached_target_required', 'Attached playback requires exact tab identity from the Waypoint side panel.');
     try {
-      this.browser = await chromium.connectOverCDP(endpoint);
-    } catch (firstError) {
-      // The window can disappear between the check above and the connect.
-      // Re-check (which opens a tab only if there is none) and try once more.
-      if (!isNoWindowError(firstError)) {
-        throw new Error(explainAttachFailure(endpoint, firstError));
-      }
+      this.browser = await chromium.connectOverCDP(endpoint, {
+        timeout: 5000, slowMo: this.options.slowMo ?? 0, noDefaults: true
+      });
+    } catch (error) {
+      throw new AttachedBrowserError('attached_browser_unavailable', explainAttachFailure(endpoint, error));
+    }
+    this.attached = true; // Every subsequent cleanup must disconnect, not close tabs.
+    try {
+      const page = await selectTargetPage(this.browser.contexts().flatMap(context => context.pages()), target);
+      this.context = page.context();
+      const session = await this.context.newCDPSession(page);
       try {
-        await ensureDebugPage(endpoint);
-        this.browser = await chromium.connectOverCDP(endpoint);
-      } catch (retryError) {
-        throw new Error(explainAttachFailure(endpoint, retryError));
-      }
+        const { targetInfo } = await session.send('Target.getTargetInfo');
+        this.attachedTargetId = targetInfo.targetId;
+      } finally { await session.detach(); }
+      // Consume the proof only after exact selection. Never use it as an action locator.
+      const consumed = await page.evaluate(({ attribute, token, url }) => {
+        if (location.href !== url || document.documentElement.getAttribute(attribute) !== token) return false;
+        document.documentElement.removeAttribute(attribute);
+        return true;
+      }, { attribute: ATTACHED_TARGET_ATTRIBUTE, token: target.token, url: target.url });
+      if (!consumed) throw new AttachedBrowserError('attached_target_changed', 'The selected document changed during attachment. Select the page and try again.');
+      this.pages.set(`tab_${this.tabAliasCounter++}`, page);
+      this.activePage = page;
+      this.initialPageUrl = page.url();
+      return this.context;
+    } catch (error) {
+      await this.dispose();
+      if (error instanceof AttachedBrowserError) throw error;
+      throw new AttachedBrowserError('attached_target_unavailable',
+        `Could not prepare the selected tab. Keep it open and retry: ${error instanceof Error ? error.message.split('\n')[0] : String(error)}`);
     }
-    this.attached = true;
-
-    // Adopt the browser's existing context. Creating one would open a new
-    // window, which is the opposite of attaching.
-    const existingContext = this.browser.contexts()[0];
-    this.context = existingContext ?? (await this.browser.newContext());
-
-    // Replay in the tab the user is looking at: the one the side panel
-    // reported, else the tab on the recorded URL, else any real tab. A new tab
-    // is opened only when the browser has no real tab at all.
-    let page = selectTargetPage(this.context.pages(), this.runTarget);
-    if (!page) {
-      console.info(
-        `[waypoint] Chrome at ${endpoint} has no tab to replay in; opening one.`
-      );
-      page = await this.context.newPage();
-    }
-    await page.bringToFront();
-
-    const alias = `tab_${this.tabAliasCounter++}`;
-    this.pages.set(alias, page);
-    this.activePage = page;
-
-    return this.context;
   }
 
   private async getActivePage(): Promise<Page> {
@@ -254,6 +235,10 @@ export class PlaywrightBrowserLauncher implements BrowserLauncher {
   ): Promise<StepExecutionResult | void> {
     const page = await this.getActivePage();
     const timeout = step.timeoutMs ?? 30_000;
+    if (this.initialPageUrl !== undefined) {
+      if (!samePageUrl(page.url(), this.initialPageUrl)) throw new AttachedBrowserError('attached_target_changed', 'The selected page navigated before playback began. Run again from the intended tab.');
+      this.initialPageUrl = undefined;
+    }
 
     switch (step.type) {
       case 'goto':
@@ -298,8 +283,8 @@ export class PlaywrightBrowserLauncher implements BrowserLauncher {
   ): Promise<void> {
     // Skip navigation if already on the target URL
     const currentUrl = page.url();
-    const normalize = (u: string) => u.replace(/\/+$/, '').replace(/#.*$/, '');
-    if (normalize(currentUrl) === normalize(step.url)) {
+    if (this.attached) assertSafeAttachedNavigation(currentUrl, step.url);
+    if (samePageUrl(currentUrl, step.url)) {
       return;
     }
     await page.goto(step.url, {
@@ -727,6 +712,7 @@ export class PlaywrightBrowserLauncher implements BrowserLauncher {
     step: Extract<WorkflowStep, { type: 'newTab' }>
   ): Promise<void> {
     await this.ensureBrowser();
+    if (this.attached && step.initialUrl) assertSafeAttachedNavigation(this.activePage!.url(), step.initialUrl);
     const newPage = await this.context!.newPage();
     const alias = `tab_${this.tabAliasCounter++}`;
     this.pages.set(alias, newPage);
@@ -765,13 +751,25 @@ export class PlaywrightBrowserLauncher implements BrowserLauncher {
    * to clear, and a run in that mode is explicitly not isolated anyway.
    */
   async resetForRun(options: RunTargetOptions = {}): Promise<void> {
-    this.runTarget = options;
-    if (this.attached) {
-      if (this.activePage) {
-        await this.clearHighlight(this.activePage);
+    if (this.options.mode === 'attached') {
+      await this.dispose();
+      this.runTarget = options;
+      this.attachedTargetId = undefined;
+      if (!options.attachedTarget) throw new AttachedBrowserError('attached_target_required', 'Select a webpage in the Waypoint side panel and run again.');
+      if (options.recordedUrl) assertSafeAttachedNavigation(options.attachedTarget.url, options.recordedUrl);
+      await this.ensureBrowser(); // Fail before accepting a run; never launch/create anything.
+      if (options.reloadBeforeRun && (!options.recordedUrl || samePageUrl(this.activePage!.url(), options.recordedUrl))) {
+        try { await this.activePage!.reload({ waitUntil: 'load', timeout: 30_000 }); }
+        catch (error) {
+          await this.dispose();
+          throw new AttachedBrowserError('attached_reload_failed',
+            `The selected tab could not reload. Check the page and retry: ${error instanceof Error ? error.message.split('\n')[0] : String(error)}`);
+        }
+        this.initialPageUrl = this.activePage!.url();
       }
       return;
     }
+    this.runTarget = options;
     if (this.context) {
       try { await this.context.close(); } catch { /* already gone */ }
       this.context = null;
@@ -820,9 +818,17 @@ export class PlaywrightBrowserLauncher implements BrowserLauncher {
       ...(this.options.allowedFamily ? { allowedFamily: this.options.allowedFamily } : {}),
       headless: Boolean(this.options.headless),
       slowMo: this.options.slowMo ?? 0,
-      contextIsolation: this.options.cdpEndpoint ? 'attached' : 'isolated',
-      browserEngine: this.options.cdpEndpoint ? 'cdp' : 'chromium',
-      ...(this.options.cdpEndpoint ? { cdpEndpoint: this.options.cdpEndpoint } : {})
+      contextIsolation: this.options.mode === 'attached' ? 'attached' : 'isolated',
+      browserEngine: this.options.mode === 'attached' ? 'cdp' : 'chromium',
+      researchEligible: this.options.mode !== 'attached',
+      ...(this.options.mode === 'attached' ? {
+        cdpEndpoint: this.options.cdpEndpoint,
+        selectedTabId: this.runTarget.attachedTarget?.tabId,
+        selectedWindowId: this.runTarget.attachedTarget?.windowId,
+        selectedUrl: this.runTarget.attachedTarget?.url,
+        ...(this.runTarget.attachedTarget?.documentId ? { selectedDocumentId: this.runTarget.attachedTarget.documentId } : {}),
+        ...(this.attachedTargetId ? { selectedTargetId: this.attachedTargetId } : {})
+      } : {})
     };
   }
 }

@@ -1,19 +1,10 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { api } from '../api';
 import { useExtensionStore } from '../store';
 
-/** URL of the active tab in this side panel's window, if the API allows. */
-async function activeTabUrl(): Promise<string | undefined> {
-  try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    return tab?.url || undefined;
-  } catch {
-    return undefined;
-  }
-}
-
 export function WorkflowListView() {
+  const [reloadBeforeRun, setReloadBeforeRun] = useState(false);
   const {
     workflows, workflowOrder, setWorkflows, updateWorkflowInStore, removeWorkflow,
     setView, setSelectedRunId, setSelectedWorkflowId,
@@ -195,17 +186,21 @@ export function WorkflowListView() {
       setStatus('ready', `Starting run ${where}...`);
       // Attached runs replay in the tab the user is looking at — the one next
       // to this side panel — so tell the runner which tab that is.
-      const targetUrl = engine === 'attached' ? await activeTabUrl() : undefined;
+      let attachedTarget;
+      if (engine === 'attached') {
+        const window = await chrome.windows.getCurrent();
+        if (window.id === undefined) throw new Error('Cannot identify this side panel’s browser window. Reopen the side panel and try again.');
+        const captured = await api.captureAttachedTarget(window.id);
+        if (!captured.ok || !captured.payload) throw new Error(captured.message ?? 'Cannot identify the selected tab.');
+        attachedTarget = captured.payload;
+      }
       const { runId } = await api.runWorkflow(workflowId, {
         engine,
-        ...(targetUrl && { targetUrl })
+        ...(attachedTarget && { attachedTarget, reloadBeforeRun })
       });
       setStatus(
         'ready',
-        `Run ${runId} running ${where}.` +
-          (engine === 'attached'
-            ? ' The first run opens Chrome, which can take a few seconds.'
-            : '')
+        `Run ${runId} running ${where}.`
       );
       watchRun(runId, where);
     } catch (err) {
@@ -337,10 +332,15 @@ export function WorkflowListView() {
                 <button
                   className="wp-button wp-button--secondary"
                   onClick={() => void handleRun(id, 'attached')}
-                  title="Reuse a browser that stays open between runs, so you can watch it and page state carries over. Opens one automatically the first time. Demo only — runs are not reproducible."
+                  title="Replay in the selected tab in this window. Requires this browser to expose CDP; never opens a replacement browser. Demo only — runs are not isolated."
                 >
                   Run in open browser
                 </button>
+                <label className="wp-label">
+                  <input type="checkbox" checked={reloadBeforeRun}
+                    onChange={(event) => setReloadBeforeRun(event.target.checked)} />
+                  Reload selected tab before attached replay
+                </label>
                 <button
                   className="wp-button"
                   onClick={() => {

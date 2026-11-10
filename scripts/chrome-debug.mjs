@@ -1,13 +1,12 @@
 #!/usr/bin/env node
 /**
- * Launches a Chrome that the runner's "Run in my browser" mode can attach to.
+ * Launches a Chrome that the runner's "Run in open browser" mode can attach to.
  *
  * Attaching needs a browser started with --remote-debugging-port, which a
  * Chrome opened from the dock does not have. It also needs a build Playwright
- * can actually speak to: recent stable Chrome rejects the connectOverCDP
- * handshake with "Browser context management is not supported", so this
- * prefers the Chrome for Testing build Playwright installed and only falls
- * back to system Chrome with a warning.
+ * can actually speak to. This explicit setup helper prefers the Chrome for
+ * Testing build Playwright installed and falls back to system Chrome with a
+ * compatibility warning. The runner never invokes this helper automatically.
  *
  * The profile directory is persistent, so anything you set up by hand — a
  * login, a filter, a page scrolled to the right place — survives between
@@ -76,7 +75,7 @@ if (url) args.push(url);
 
 console.info(`[waypoint] Debug port : http://localhost:${PORT}`);
 console.info(`[waypoint] Profile    : ${PROFILE_DIR}`);
-console.info('[waypoint] Leave this browser open, then use "Run in my browser".');
+console.info('[waypoint] Leave this browser open, then use "Run in open browser".');
 console.info('[waypoint] Demo only — runs here inherit this browser\'s state.');
 
 const child = spawn(binary, args, { stdio: 'inherit' });

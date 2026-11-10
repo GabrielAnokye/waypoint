@@ -26,9 +26,8 @@ const RunnerEnvSchema = z.object({
    * - `chromium` launches a fresh Playwright browser per run. The only mode
    *   valid for collecting experiment data, because every run starts from
    *   identical state.
-   * - `cdp` attaches to a Chrome you already have open (see
-   *   BROWSER_CDP_ENDPOINT) and drives its current tab. Demo only: it inherits
-   *   whatever state that browser carries, so runs are not reproducible.
+   * - `cdp` is a deprecated alias for the isolated Chromium default. Attached
+   *   playback now requires engine='attached' and exact tab identity per request.
    * - `noop` simulates success for every step, for exercising orchestration
    *   without a browser.
    *
@@ -37,7 +36,7 @@ const RunnerEnvSchema = z.object({
    * varies between runs. See docs/EXPERIMENT-INTEGRITY.md.
    */
   BROWSER_ENGINE: z.enum(['chromium', 'cdp', 'noop']).default('chromium'),
-  /** CDP endpoint used when BROWSER_ENGINE=cdp. */
+  /** Existing browser endpoint used only for explicit attached requests. */
   BROWSER_CDP_ENDPOINT: z.string().default('http://localhost:9222'),
   /** Headless by default: experiment batches run unattended. Set false to watch. */
   BROWSER_HEADLESS: BooleanFromEnv(true),

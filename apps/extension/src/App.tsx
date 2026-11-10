@@ -78,9 +78,7 @@ export function App() {
               wordBreak: 'break-word'
             }}
           >
-            {lastMessage.length > 160
-              ? lastMessage.slice(0, 160) + '...'
-              : lastMessage}
+            {lastMessage}
           </p>
           <button
             onClick={() => setStatus('idle', '')}

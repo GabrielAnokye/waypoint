@@ -1,4 +1,5 @@
 import type {
+  AttachedTarget,
   AuthProfile,
   AuthProfileStatus,
   DiagnosticsBundle,
@@ -65,6 +66,9 @@ export const api = {
   // SW messages
   ping: () => sendSWMessage({ type: 'waypoint.ping' }),
 
+  captureAttachedTarget: (windowId: number) =>
+    sendSWMessage<AttachedTarget>({ type: 'waypoint.playback.captureTarget', windowId }),
+
   startRecording: (name: string) =>
     sendSWMessage<{ recordingId: string }>({
       type: 'waypoint.recording.start',
@@ -123,8 +127,8 @@ export const api = {
       debugMode?: boolean;
       /** `isolated` (default) starts clean; `attached` drives your open Chrome. */
       engine?: 'isolated' | 'attached';
-      /** For `attached`: URL of the tab to replay in (the active tab). */
-      targetUrl?: string;
+      attachedTarget?: AttachedTarget;
+      reloadBeforeRun?: boolean;
     }
   ) =>
     runnerFetch<{ runId: string; status: string }>(

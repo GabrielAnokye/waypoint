@@ -2,7 +2,8 @@ import { createServer, type Server } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { chromium, expect, test, type BrowserContext, type Page, type APIRequestContext } from '@playwright/test';
-import type { RecordingSessionInput, RunGraph, Workflow } from '@waypoint/shared-types';
+import type { AttachedTarget, RecordingSessionInput, RunGraph, Workflow } from '@waypoint/shared-types';
+import { WorkflowStepSchema } from '@waypoint/shared-types';
 import { createPlaywrightLauncher } from '../../apps/runner/src/core/playwright-launcher.js';
 import { executeWorkflow } from '../../apps/runner/src/core/executor.js';
 import { buildRunGraph } from '../../apps/runner/src/core/persist.js';
@@ -28,9 +29,8 @@ async function hits(): Promise<Hit[]> {
   return page.evaluate(() => (window as unknown as { replayHits: Hit[] }).replayHits);
 }
 
-async function resetPage(): Promise<void> {
-  await page.goto(fixtureUrl);
-  await page.evaluate(() => {
+function installEvidence(): void {
+  document.addEventListener('DOMContentLoaded', () => {
     const log = document.createElement('aside');
     log.id = 'replay-evidence';
     log.style.cssText = 'position:fixed;right:10px;top:10px;width:210px;padding:16px;background:#123;color:white;z-index:9999;font:14px system-ui;border-radius:8px';
@@ -52,11 +52,21 @@ async function resetPage(): Promise<void> {
   });
 }
 
-async function run(request: APIRequestContext, steps = workflow.steps): Promise<RunGraph> {
+async function resetPage(): Promise<void> {
+  await page.goto(fixtureUrl);
+}
+
+async function captureTarget(): Promise<AttachedTarget> {
+  await page.bringToFront();
+  const windowId = await panel.evaluate(async () => (await chrome.windows.getCurrent()).id!);
+  return message<AttachedTarget>('waypoint.playback.captureTarget', { windowId });
+}
+
+async function run(request: APIRequestContext, steps = workflow.steps, reloadBeforeRun = false): Promise<RunGraph> {
   const edit = await request.put(`/workflows/${workflow.workflowId}/definition`, { data: { steps } });
   expect(edit.ok()).toBe(true);
   const started = await request.post(`/workflows/${workflow.workflowId}/run`, {
-    data: { engine: 'attached', targetUrl: fixtureUrl }
+    data: { engine: 'attached', attachedTarget: await captureTarget(), reloadBeforeRun }
   });
   expect(started.ok()).toBe(true);
   const { runId } = await started.json();
@@ -106,6 +116,7 @@ test.beforeEach(async ({ request }, info) => {
   panel = await context.newPage();
   await panel.goto(`chrome-extension://${id}/sidepanel.html`);
   await message('waypoint.ping');
+  await context.addInitScript(installEvidence);
   page = await context.newPage();
   await resetPage();
   await page.bringToFront();
@@ -206,8 +217,8 @@ test('a unique but wrong fallback records the wrong actual identity as false_pos
 test('benchmark intent cannot borrow structural fallbacks; structural succeeds independently', async () => {
   for (const allowedFamily of ['intent', 'testContract', 'structural', 'coordinate'] as const) {
     await resetPage();
-    const launcher = createPlaywrightLauncher({ cdpEndpoint: 'http://127.0.0.1:9223', slowMo: 0, keepOpenMs: 0, allowedFamily });
-    await launcher.resetForRun?.({ targetUrl: fixtureUrl });
+    const launcher = createPlaywrightLauncher({ mode: 'attached', cdpEndpoint: 'http://127.0.0.1:9223', slowMo: 0, keepOpenMs: 0, allowedFamily });
+    await launcher.resetForRun?.({ attachedTarget: await captureTarget() });
     // Clicks alone: inferred element waits are not meaningful for coordinates.
     const trial = { ...workflow, steps: workflow.steps.filter(s => s.type === 'click') };
     const graph = await buildRunGraph(trial, executeWorkflow(trial, { launcher }), { workflowVersionId: 'family-trial' });
@@ -239,4 +250,181 @@ test('a locator that becomes ambiguous after resolution never clicks its first m
   expect(graph.run.status).toBe('failed');
   expect(graph.run.errorCode).toBe('ambiguous_locator');
   expect(await hits()).toEqual([]);
+});
+
+test('identical URLs select the exact second tab and preserve every existing page', async ({ request }) => {
+  const unrelated = page;
+  page = await context.newPage();
+  await resetPage();
+  const before = [...context.pages()];
+  await page.evaluate(() => { sessionStorage.setItem('attached-state', 'keep-me'); });
+  let navigations = 0;
+  page.on('framenavigated', frame => { if (frame === page.mainFrame()) navigations++; });
+  const graph = await run(request);
+  expect(graph.run.status).toBe('succeeded');
+  expect(graph.run.metadata).toMatchObject({ contextIsolation: 'attached', researchEligible: false });
+  expect(graph.run.metadata.selectedTargetId).toBeTruthy();
+  expect((await hits()).map(hit => hit.truthId)).toEqual(identities);
+  expect(await unrelated.evaluate(() => (window as unknown as { replayHits: Hit[] }).replayHits)).toEqual([]);
+  expect(navigations).toBe(0);
+  expect(await page.evaluate(() => sessionStorage.getItem('attached-state'))).toBe('keep-me');
+  expect(context.pages()).toEqual(before);
+  expect(before.every(existing => !existing.isClosed())).toBe(true);
+  await evidence('exact-second-tab');
+});
+
+test('a different starting URL navigates the selected existing tab once', async ({ request }) => {
+  await page.goto(fixtureUrl.replace('ambiguous.html', 'another-page.html'));
+  const before = [...context.pages()];
+  let navigations = 0;
+  page.on('framenavigated', frame => { if (frame === page.mainFrame()) navigations++; });
+  const graph = await run(request);
+  expect(graph.run.status).toBe('succeeded');
+  expect(page.url()).toBe(fixtureUrl);
+  expect(navigations).toBe(1);
+  expect((await hits()).map(hit => hit.truthId)).toEqual(identities);
+  expect(context.pages()).toEqual(before);
+  await evidence('same-tab-navigation');
+});
+
+test('explicit refresh reloads the selected page once and preserves stored authentication state', async ({ request }) => {
+  await page.evaluate(() => { localStorage.setItem('test-session', 'authenticated'); });
+  await context.addCookies([{ name: 'test-auth', value: 'keep', url: fixtureUrl }]);
+  let navigations = 0;
+  page.on('framenavigated', frame => { if (frame === page.mainFrame()) navigations++; });
+  const graph = await run(request, workflow.steps, true);
+  expect(graph.run.status).toBe('succeeded');
+  expect(navigations).toBe(1);
+  expect(await page.evaluate(() => localStorage.getItem('test-session'))).toBe('authenticated');
+  expect((await context.cookies()).find(cookie => cookie.name === 'test-auth')?.value).toBe('keep');
+  expect((await hits()).map(hit => hit.truthId)).toEqual(identities);
+});
+
+test('missing or stale tab identity returns an actionable error with no replacement page', async ({ request }) => {
+  const before = [...context.pages()];
+  const missing = await request.post(`/workflows/${workflow.workflowId}/run`, { data: { engine: 'attached', targetUrl: fixtureUrl } });
+  expect(missing.status()).toBe(400);
+  const target = await captureTarget();
+  await page.reload(); // The document proof no longer exists, even though URL is unchanged.
+  const stale = await request.post(`/workflows/${workflow.workflowId}/run`, { data: { engine: 'attached', attachedTarget: target } });
+  expect(stale.status()).toBe(409);
+  expect(await stale.json()).toMatchObject({ error: 'attached_target_not_found' });
+  expect(await hits()).toEqual([]);
+  expect(context.pages()).toEqual(before);
+});
+
+test('Run clean executes in isolation and leaves the selected browser untouched', async ({ request }) => {
+  const before = [...context.pages()];
+  const start = await request.post(`/workflows/${workflow.workflowId}/run`, { data: { engine: 'isolated' } });
+  expect(start.ok()).toBe(true);
+  const { runId } = await start.json();
+  let graph: RunGraph;
+  await expect.poll(async () => {
+    const response = await request.get(`/runs/${runId}`);
+    if (response.status() === 404) return 'running';
+    graph = await response.json();
+    return graph.run.status;
+  }, { timeout: 30_000 }).toBe('succeeded');
+  expect(graph!.run.metadata).toMatchObject({ contextIsolation: 'isolated', browserEngine: 'chromium', researchEligible: true });
+  expect(graph!.steps.filter(step => step.stepType === 'click').map(step => step.resolvedTruthId)).toEqual(identities);
+  expect(await hits()).toEqual([]);
+  expect(context.pages()).toEqual(before);
+});
+
+test('unavailable CDP refuses attachment and leaves the existing browser untouched', async () => {
+  const before = [...context.pages()];
+  const launcher = createPlaywrightLauncher({ mode: 'attached', cdpEndpoint: 'http://127.0.0.1:9', keepOpenMs: 0 });
+  await expect(launcher.resetForRun!({ attachedTarget: await captureTarget() })).rejects.toMatchObject({ code: 'attached_browser_unavailable' });
+  expect(context.pages()).toEqual(before);
+  expect(await hits()).toEqual([]);
+});
+
+test('only an explicit recorded newTab step creates a page and leaves existing tabs open', async ({ request }) => {
+  const selected = page;
+  const before = [...context.pages()];
+  const graph = await run(request, [
+    WorkflowStepSchema.parse({ id: 'recorded-new-tab', type: 'newTab', initialUrl: fixtureUrl }),
+    ...workflow.steps.filter(step => step.type === 'click')
+  ]);
+  expect(graph.run.status).toBe('succeeded');
+  expect(await hits()).toEqual([]);
+  expect(context.pages()).toHaveLength(before.length + 1);
+  expect(before.every(existing => !existing.isClosed())).toBe(true);
+  page = context.pages().find(existing => !before.includes(existing))!;
+  expect(page).not.toBe(selected);
+  expect((await hits()).map(hit => hit.truthId)).toEqual(identities);
+  await evidence('explicit-recorded-new-tab');
+});
+
+test('the real side panel Run in open browser button replays in its active webpage', async ({ request }, info) => {
+  test.skip(info.project.use.headless !== false, 'Native side panel demonstration requires a visible browser.');
+  await page.bringToFront();
+  const browserSession = await context.browser()!.newBrowserCDPSession();
+  const tabSession = await context.newCDPSession(panel);
+  const { targetInfo: panelTabInfo } = await tabSession.send('Target.getTargetInfo');
+  await tabSession.detach();
+  await panel.evaluate(async () => {
+    const window = await chrome.windows.getCurrent();
+    await chrome.sidePanel.open({ windowId: window.id! });
+  });
+  // Native side panels are omitted from the default CDP target filter and
+  // are not ordinary Playwright Pages. This test-only transport drives the UI;
+  // replay still uses the
+  // unchanged production Playwright launcher and resolver.
+  let panelTargetId = '';
+  await expect.poll(async () => {
+    const { targetInfos } = await browserSession.send('Target.getTargets', { filter: [{ exclude: false }] });
+    panelTargetId = targetInfos.find(t => t.targetId !== panelTabInfo.targetId && t.url.endsWith('/sidepanel.html'))?.targetId ?? '';
+    return panelTargetId;
+  }).not.toBe('');
+  const { sessionId } = await browserSession.send('Target.attachToTarget', { targetId: panelTargetId, flatten: false });
+  let commandId = 0;
+  const pending = new Map<number, { resolve(value: Record<string, unknown>): void; reject(error: Error): void }>();
+  browserSession.on('Target.receivedMessageFromTarget', event => {
+    if (event.sessionId !== sessionId) return;
+    const message = JSON.parse(event.message);
+    const waiter = pending.get(message.id);
+    if (!waiter) return;
+    pending.delete(message.id);
+    if (message.error) waiter.reject(new Error(message.error.message));
+    else waiter.resolve(message.result);
+  });
+  async function panelCommand(method: string, params: Record<string, unknown> = {}): Promise<Record<string, unknown>> {
+    const id = ++commandId;
+    const answer = new Promise<Record<string, unknown>>((resolve, reject) => pending.set(id, { resolve, reject }));
+    await browserSession.send('Target.sendMessageToTarget', { sessionId, message: JSON.stringify({ id, method, params }) });
+    return answer;
+  }
+  async function panelEvaluate(expression: string): Promise<unknown> {
+    const response = await panelCommand('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });
+    if (response.exceptionDetails) throw new Error(JSON.stringify(response.exceptionDetails));
+    return (response.result as { value?: unknown })?.value;
+  }
+  // Redirect only this native panel's HTTP client to the fresh test runner.
+  await panelEvaluate(`(() => {
+    const original = globalThis.fetch.bind(globalThis);
+    globalThis.fetch = (input, init) => original(typeof input === 'string' ? input.replace('http://127.0.0.1:3100', 'http://127.0.0.1:3101') : input, init);
+  })()`);
+  const before = [...context.pages()];
+  const buttonExpression = `Array.from(document.querySelectorAll('section.wp-card')).find(card => Array.from(card.querySelectorAll('p.wp-label')).some(label => label.textContent === ${JSON.stringify(workflow.name)}))?.querySelectorAll('button')[1]`;
+  await expect.poll(() => panelEvaluate(`Boolean(${buttonExpression})`)).toBe(true);
+  await panelEvaluate(`(${buttonExpression}).scrollIntoView({ block: 'center' })`);
+  const rect = await panelEvaluate(`(() => { const r = (${buttonExpression}).getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; })()`) as { x: number; y: number };
+  await panelCommand('Input.dispatchMouseEvent', { type: 'mousePressed', ...rect, button: 'left', clickCount: 1 });
+  await panelCommand('Input.dispatchMouseEvent', { type: 'mouseReleased', ...rect, button: 'left', clickCount: 1 });
+  let graph: RunGraph;
+  await expect.poll(async () => {
+    const listed = await (await request.get(`/runs?workflowId=${workflow.workflowId}`)).json();
+    const runId = listed.runs[0]?.id;
+    if (!runId) return 'running';
+    graph = await (await request.get(`/runs/${runId}`)).json();
+    return graph.run.status;
+  }, { timeout: 15_000 }).toBe('succeeded');
+  expect((await hits()).map(hit => hit.truthId)).toEqual(identities);
+  expect(context.pages()).toEqual(before);
+  await info.attach('side-panel-run.json', { body: JSON.stringify(graph!, null, 2), contentType: 'application/json' });
+  const screenshot = await panelCommand('Page.captureScreenshot');
+  await info.attach('native-side-panel', { body: Buffer.from(screenshot.data as string, 'base64'), contentType: 'image/png' });
+  await browserSession.detach();
+  await evidence('side-panel-correct-targets');
 });

@@ -38,6 +38,7 @@ import {
 } from './core/executor.js';
 import { buildRunGraph } from './core/persist.js';
 import { RunRegistry } from './core/run-registry.js';
+import { AttachedBrowserError } from './core/debug-browser.js';
 import type { RunnerEnv } from './env.js';
 
 /**
@@ -222,16 +223,20 @@ export function buildRunnerServer(
     const runId = `run_${randomUUID()}`;
     busyLaunchers.set(runLauncher, runId);
 
-    // Clear anything the previous run left in the browser. Without this, runs
-    // share cookies, storage and open pages, and results become order-dependent.
-    const firstGoto = workflow.steps.find((s) => s.type === 'goto');
+    // Isolated runs start fresh; attached runs preflight the exact existing tab
+    // and preserve its state, with a reload only when explicitly requested.
+    const firstGoto = workflow.steps.find((s) => s.enabled && s.type === 'goto');
     try {
       await runLauncher.resetForRun?.({
-        ...(parsed.data.targetUrl !== undefined && { targetUrl: parsed.data.targetUrl }),
+        ...(parsed.data.attachedTarget && { attachedTarget: parsed.data.attachedTarget }),
+        ...(parsed.data.reloadBeforeRun !== undefined && { reloadBeforeRun: parsed.data.reloadBeforeRun }),
         ...(firstGoto?.type === 'goto' && { recordedUrl: firstGoto.url })
       });
     } catch (err) {
       busyLaunchers.delete(runLauncher);
+      if (err instanceof AttachedBrowserError) {
+        return reply.code(409).send({ error: err.code, message: err.message });
+      }
       throw err;
     }
 
@@ -271,7 +276,8 @@ export function buildRunnerServer(
             authProfileId: parsed.data.authProfileId
           }),
           metadata: {
-            ...executionConditions
+            ...executionConditions,
+            researchEligible: parsed.data.engine !== 'attached'
           }
         });
         repository.saveRunGraph(graph);

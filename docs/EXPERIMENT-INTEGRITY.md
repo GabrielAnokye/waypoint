@@ -17,7 +17,7 @@ on and a published result that is quietly false.
 | Setting | Demo value | Required for collection | Why it invalidates data |
 | --- | --- | --- | --- |
 | Run button | **Run in open browser** | **Run clean** | The attached engine reuses a browser that deliberately keeps its state between runs, so run N sees whatever run N-1 left behind. Per-run, this is the easiest mistake to make, because both buttons sit side by side and both report success. |
-| `BROWSER_ENGINE` | `cdp` or `noop` | **`chromium`** | `cdp` inherits the attached browser's cookies, storage, scroll position and other extensions, so runs are not reproducible and a failure cannot be attributed to the mutation. `noop` never touches a page and reports success unconditionally. |
+| `BROWSER_ENGINE` | `noop` | **`chromium`** | `noop` never touches a page and reports success unconditionally. The legacy `cdp` setting now prints a migration notice and keeps clean runs isolated; attached playback requires an explicit request with selected-tab identity. |
 | `BROWSER_HEADLESS` | `false` | `true` | Not strictly invalid, but a visible window is slower and subject to OS focus and window-size effects. Keep batches headless so viewport is deterministic. |
 | `BROWSER_SLOW_MO` | `300`–`400` | `0` | Inflates per-step latency, which is one of the dependent measures. Any timing result collected with slow motion on is meaningless. |
 | `BROWSER_KEEP_OPEN_MS` | `4000` | `0` | Adds fixed wall-clock time per run. Harmless to correctness, ruinous to a throughput or latency figure. |
@@ -136,11 +136,11 @@ a successful run in the summary output.
 
 ## 4. Recommended hardening
 
-The register above is a document, and documents get skipped. The robust version
-is to make the data carry its own provenance: stamp `BROWSER_ENGINE`,
-`BROWSER_SLOW_MO`, headless state, and the fixture base URL into each run's
-`metadata`, then have the analysis step refuse runs that were not collected
-under valid conditions.
+Runs now carry browser engine, isolation, slow motion, and headless settings in
+their metadata. Attached runs also carry the selected tab/window/target identity
+and `researchEligible: false`. An analysis gate should still reject unsuitable
+runs and verify the fixture origin and all controlled experiment settings.
 
 That converts "remember to check" into "cannot silently publish a demo run",
-which is the only version that survives a deadline. Not yet implemented.
+which is the only version that survives a deadline. The analysis gate remains
+future work; metadata alone does not validate a research dataset.

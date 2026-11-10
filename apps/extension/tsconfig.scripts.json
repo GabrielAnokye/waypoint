@@ -13,7 +13,8 @@
     "src/content-script.ts",
     "src/service-worker.ts",
     "src/scheduler.ts",
-    "src/recordable-url.ts"
+    "src/recordable-url.ts",
+    "src/attached-target.ts"
   ],
   "references": [
     { "path": "../../packages/shared-types" }
