@@ -2,15 +2,16 @@ import { randomUUID } from 'node:crypto';
 
 import type {
   JsonValue,
+  HealingTelemetry,
   Locator,
   RepairRecord,
   RunEvent,
   RunGraph,
   TruthClassification,
-  Workflow
+  Workflow,
 } from '@waypoint/shared-types';
 
-interface StepAccumulator {
+interface StepAccumulator extends HealingTelemetry {
   id: string;
   stepId: string;
   stepType: RunGraph['steps'][number]['stepType'];
@@ -73,7 +74,7 @@ export async function buildRunGraph(
             stepType: event.stepType,
             status: 'running',
             attemptCount: event.attempt,
-            startedAt: event.startedAt
+            startedAt: event.startedAt,
           });
         }
         break;
@@ -84,9 +85,19 @@ export async function buildRunGraph(
           acc.status = 'succeeded';
           acc.finishedAt = event.finishedAt;
           acc.durationMs = event.durationMs;
+          Object.assign(acc, {
+            healingAttempted: event.healingAttempted ?? false,
+            healingOutcome: event.healingOutcome,
+            healedScore: event.healedScore,
+            ambiguityMargin: event.ambiguityMargin,
+            regeneratedLocator: event.regeneratedLocator,
+            topCandidates: event.topCandidates,
+            healingLatencyMs: event.healingLatencyMs,
+          });
           if (event.resolvedLocator) acc.resolvedLocator = event.resolvedLocator;
           if (event.usedFallback !== undefined) acc.usedFallback = event.usedFallback;
-          if (event.truthClassification) acc.truthClassification = event.truthClassification;
+          if (event.truthClassification)
+            acc.truthClassification = event.truthClassification;
           if (event.resolvedTruthId) acc.resolvedTruthId = event.resolvedTruthId;
           if (event.expectedTruthId) acc.expectedTruthId = event.expectedTruthId;
         }
@@ -95,13 +106,26 @@ export async function buildRunGraph(
       case 'step.failed': {
         const acc = stepsById.get(event.stepId);
         if (acc) {
-          acc.status = 'failed';
+          acc.status =
+            event.healingOutcome === 'needs_manual_intervention'
+              ? 'needs_manual_intervention'
+              : 'failed';
           acc.finishedAt = event.finishedAt;
           acc.durationMs = event.durationMs;
+          Object.assign(acc, {
+            healingAttempted: event.healingAttempted ?? false,
+            healingOutcome: event.healingOutcome,
+            healedScore: event.healedScore,
+            ambiguityMargin: event.ambiguityMargin,
+            regeneratedLocator: event.regeneratedLocator,
+            topCandidates: event.topCandidates,
+            healingLatencyMs: event.healingLatencyMs,
+          });
           acc.errorCode = event.error.code;
           acc.errorMessage = event.error.message;
           if (event.error.repairRecord) acc.repairRecord = event.error.repairRecord;
-          if (event.truthClassification) acc.truthClassification = event.truthClassification;
+          if (event.truthClassification)
+            acc.truthClassification = event.truthClassification;
           if (event.resolvedTruthId) acc.resolvedTruthId = event.resolvedTruthId;
           if (event.expectedTruthId) acc.expectedTruthId = event.expectedTruthId;
         }
@@ -139,7 +163,7 @@ export async function buildRunGraph(
       errorMessage,
       createdAt,
       updatedAt,
-      metadata: (options.metadata as Record<string, JsonValue>) ?? {}
+      metadata: (options.metadata as Record<string, JsonValue>) ?? {},
     },
     steps: [...stepsById.values()].map((acc) => ({
       id: acc.id,
@@ -158,6 +182,13 @@ export async function buildRunGraph(
       expectedTruthId: acc.expectedTruthId,
       errorCode: acc.errorCode,
       errorMessage: acc.errorMessage,
+      healingAttempted: acc.healingAttempted ?? false,
+      healingOutcome: acc.healingOutcome,
+      healedScore: acc.healedScore,
+      ambiguityMargin: acc.ambiguityMargin,
+      regeneratedLocator: acc.regeneratedLocator,
+      topCandidates: acc.topCandidates,
+      healingLatencyMs: acc.healingLatencyMs,
       artifactIds: [],
       debug: {
         sourceEventIds: [],
@@ -165,9 +196,9 @@ export async function buildRunGraph(
         tags: [],
         extra: acc.repairRecord
           ? { repairRecord: JSON.parse(JSON.stringify(acc.repairRecord)) as JsonValue }
-          : {}
-      }
+          : {},
+      },
     })),
-    artifacts: []
+    artifacts: [],
   };
 }

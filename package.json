@@ -11,14 +11,15 @@
     "dev": "corepack pnpm build:packages && concurrently -n extension,runner -c blue,green \"corepack pnpm --filter @waypoint/extension dev\" \"corepack pnpm --filter @waypoint/runner dev\"",
     "build": "corepack pnpm -r build",
     "build:packages": "corepack pnpm -r --filter \"./packages/*\" build",
-    "test": "vitest run",
+    "test": "corepack pnpm build:packages && vitest run",
     "test:e2e": "corepack pnpm build && playwright test",
     "lint": "eslint .",
     "typecheck": "tsc -b --pretty false",
     "clean": "corepack pnpm -r clean && rimraf coverage playwright-report test-results",
     "serve:fixtures": "npx -y serve tests/fixtures/demo-pages -l 8080 --no-clipboard",
     "serve:mutations": "tsx apps/runner/src/core/mutation/server.ts",
-    "chrome:debug": "node scripts/chrome-debug.mjs"
+    "chrome:debug": "node scripts/chrome-debug.mjs",
+    "benchmark:run": "corepack pnpm build:packages && tsx apps/runner/src/core/benchmark/runner.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.18.0",

@@ -10,7 +10,7 @@ import { AttachedBrowserError } from './core/debug-browser.js';
 const baseEnv = {
   RUNNER_HOST: '127.0.0.1',
   RUNNER_PORT: 3100,
-  LOG_LEVEL: 'silent' as const
+  LOG_LEVEL: 'silent' as const,
 };
 
 const runner = buildRunnerServer(baseEnv);
@@ -50,7 +50,7 @@ const sampleRecording = {
       type: 'navigate',
       atMs: 0,
       tabId: 't1',
-      url: 'https://example.com'
+      url: 'https://example.com',
     },
     {
       eventId: 'e2',
@@ -59,14 +59,19 @@ const sampleRecording = {
       tabId: 't1',
       target: {
         primaryLocator: { kind: 'role', role: 'button', name: 'Save' },
-        fallbackLocators: []
+        fallbackLocators: [],
       },
-      button: 'left'
-    }
-  ]
+      button: 'left',
+    },
+  ],
 };
 
-const attachedTarget = { tabId: 1, windowId: 1, url: 'https://example.com', token: '00000000-0000-4000-8000-000000000001' };
+const attachedTarget = {
+  tabId: 1,
+  windowId: 1,
+  url: 'https://example.com',
+  token: '00000000-0000-4000-8000-000000000001',
+};
 
 async function waitForRunStatus(
   app: ReturnType<typeof buildRunnerServer>['app'],
@@ -95,15 +100,18 @@ describe('runner workflows + runs', () => {
       },
       async resetForRun() {
         calls.push('reset');
-      }
+      },
     };
-    const r = buildRunnerServer(baseEnv, { repository: repo, browserLauncher: launcher });
+    const r = buildRunnerServer(baseEnv, {
+      repository: repo,
+      browserLauncher: launcher,
+    });
     await r.app.ready();
     try {
       const save = await r.app.inject({
         method: 'POST',
         url: '/recordings',
-        payload: sampleRecording
+        payload: sampleRecording,
       });
       const { workflowId } = save.json() as { workflowId: string };
 
@@ -111,7 +119,7 @@ describe('runner workflows + runs', () => {
         const start = await r.app.inject({
           method: 'POST',
           url: `/workflows/${workflowId}/run`,
-          payload: {}
+          payload: {},
         });
         await waitForRunStatus(r.app, (start.json() as { runId: string }).runId);
       }
@@ -121,8 +129,9 @@ describe('runner workflows + runs', () => {
       expect(calls[0]).toBe('reset');
       expect(calls.filter((c) => c === 'reset')).toHaveLength(2);
       const secondReset = calls.lastIndexOf('reset');
-      expect(calls.slice(secondReset).filter((c) => c === 'step').length)
-        .toBeGreaterThan(0);
+      expect(
+        calls.slice(secondReset).filter((c) => c === 'step').length
+      ).toBeGreaterThan(0);
     } finally {
       await r.app.close();
     }
@@ -131,20 +140,31 @@ describe('runner workflows + runs', () => {
   it('rejects an attached run when no attached browser is configured', async () => {
     const repo = openWaypointDatabase(':memory:').repository;
     const launcher: BrowserLauncher = { async executeStep() {} };
-    const r = buildRunnerServer(baseEnv, { repository: repo, browserLauncher: launcher });
+    const r = buildRunnerServer(baseEnv, {
+      repository: repo,
+      browserLauncher: launcher,
+    });
     await r.app.ready();
     try {
       const save = await r.app.inject({
         method: 'POST',
         url: '/recordings',
-        payload: sampleRecording
+        payload: sampleRecording,
       });
       const { workflowId } = save.json() as { workflowId: string };
 
       const start = await r.app.inject({
         method: 'POST',
         url: `/workflows/${workflowId}/run`,
-        payload: { engine: 'attached', attachedTarget: { tabId: 1, windowId: 1, url: 'https://example.com', token: '00000000-0000-4000-8000-000000000001' } }
+        payload: {
+          engine: 'attached',
+          attachedTarget: {
+            tabId: 1,
+            windowId: 1,
+            url: 'https://example.com',
+            token: '00000000-0000-4000-8000-000000000001',
+          },
+        },
       });
 
       // Falling back to the isolated launcher would run somewhere the caller
@@ -163,39 +183,45 @@ describe('runner workflows + runs', () => {
     const isolated: BrowserLauncher = {
       async executeStep() {
         used.push('isolated');
-      }
+      },
     };
     const attached: BrowserLauncher = {
-      async resetForRun(options) { receivedTarget = options; },
+      async resetForRun(options) {
+        receivedTarget = options;
+      },
       async executeStep() {
         used.push('attached');
-      }
+      },
     };
     const r = buildRunnerServer(baseEnv, {
       repository: repo,
       browserLauncher: isolated,
-      attachedBrowserLauncher: attached
+      attachedBrowserLauncher: attached,
     });
     await r.app.ready();
     try {
       const save = await r.app.inject({
         method: 'POST',
         url: '/recordings',
-        payload: sampleRecording
+        payload: sampleRecording,
       });
       const { workflowId } = save.json() as { workflowId: string };
 
       const start = await r.app.inject({
         method: 'POST',
         url: `/workflows/${workflowId}/run`,
-        payload: { engine: 'attached', attachedTarget, reloadBeforeRun: true }
+        payload: { engine: 'attached', attachedTarget, reloadBeforeRun: true },
       });
       expect(start.statusCode).toBe(200);
       await waitForRunStatus(r.app, (start.json() as { runId: string }).runId);
 
       expect(used).toContain('attached');
       expect(used).not.toContain('isolated');
-      expect(receivedTarget).toEqual({ attachedTarget, reloadBeforeRun: true, recordedUrl: 'https://example.com' });
+      expect(receivedTarget).toEqual({
+        attachedTarget,
+        reloadBeforeRun: true,
+        recordedUrl: 'https://example.com',
+      });
     } finally {
       await r.app.close();
     }
@@ -205,23 +231,39 @@ describe('runner workflows + runs', () => {
     const repo = openWaypointDatabase(':memory:').repository;
     const touched: string[] = [];
     const launcher: BrowserLauncher = {
-      async resetForRun() { touched.push('reset'); },
-      async executeStep() { touched.push('step'); }
+      async resetForRun() {
+        touched.push('reset');
+      },
+      async executeStep() {
+        touched.push('step');
+      },
     };
-    const r = buildRunnerServer(baseEnv, { repository: repo, browserLauncher: launcher, attachedBrowserLauncher: launcher });
+    const r = buildRunnerServer(baseEnv, {
+      repository: repo,
+      browserLauncher: launcher,
+      attachedBrowserLauncher: launcher,
+    });
     await r.app.ready();
     try {
-      const save = await r.app.inject({ method: 'POST', url: '/recordings', payload: sampleRecording });
+      const save = await r.app.inject({
+        method: 'POST',
+        url: '/recordings',
+        payload: sampleRecording,
+      });
       const url = `/workflows/${save.json().workflowId}/run`;
       for (const payload of [
         { engine: 'attached', targetUrl: 'https://example.com' },
         { engine: 'isolated', attachedTarget },
-        { engine: 'isolated', reloadBeforeRun: true }
+        { engine: 'isolated', reloadBeforeRun: true },
       ]) {
-        expect((await r.app.inject({ method: 'POST', url, payload })).statusCode).toBe(400);
+        expect((await r.app.inject({ method: 'POST', url, payload })).statusCode).toBe(
+          400
+        );
       }
       expect(touched).toEqual([]);
-    } finally { await r.app.close(); }
+    } finally {
+      await r.app.close();
+    }
   });
 
   it('returns actionable attachment errors, never falls back, and releases the busy lock for retry', async () => {
@@ -230,47 +272,71 @@ describe('runner workflows + runs', () => {
     let resets = 0;
     const r = buildRunnerServer(baseEnv, {
       repository: repo,
-      browserLauncher: { async executeStep() { used.push('isolated'); } },
+      browserLauncher: {
+        async executeStep() {
+          used.push('isolated');
+        },
+      },
       attachedBrowserLauncher: {
         async resetForRun() {
-          if (++resets === 1) throw new AttachedBrowserError('attached_browser_unavailable', 'Start a debugging browser explicitly.');
+          if (++resets === 1)
+            throw new AttachedBrowserError(
+              'attached_browser_unavailable',
+              'Start a debugging browser explicitly.'
+            );
         },
-        async executeStep() { used.push('attached'); }
-      }
+        async executeStep() {
+          used.push('attached');
+        },
+      },
     });
     await r.app.ready();
     try {
-      const save = await r.app.inject({ method: 'POST', url: '/recordings', payload: sampleRecording });
+      const save = await r.app.inject({
+        method: 'POST',
+        url: '/recordings',
+        payload: sampleRecording,
+      });
       const url = `/workflows/${save.json().workflowId}/run`;
       const payload = { engine: 'attached', attachedTarget };
       const failed = await r.app.inject({ method: 'POST', url, payload });
       expect(failed.statusCode).toBe(409);
-      expect(failed.json()).toEqual({ error: 'attached_browser_unavailable', message: 'Start a debugging browser explicitly.' });
+      expect(failed.json()).toEqual({
+        error: 'attached_browser_unavailable',
+        message: 'Start a debugging browser explicitly.',
+      });
       expect(used).toEqual([]);
       const retry = await r.app.inject({ method: 'POST', url, payload });
       expect(retry.statusCode).toBe(200);
       await waitForRunStatus(r.app, retry.json().runId);
       expect(used).toContain('attached');
       expect(used).not.toContain('isolated');
-    } finally { await r.app.close(); }
+    } finally {
+      await r.app.close();
+    }
   });
 
   it('refuses a second run on a launcher that is still busy, then accepts one after', async () => {
     const repo = openWaypointDatabase(':memory:').repository;
     let release!: () => void;
-    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
     const launcher: BrowserLauncher = {
       async executeStep() {
         await gate;
-      }
+      },
     };
-    const r = buildRunnerServer(baseEnv, { repository: repo, browserLauncher: launcher });
+    const r = buildRunnerServer(baseEnv, {
+      repository: repo,
+      browserLauncher: launcher,
+    });
     await r.app.ready();
     try {
       const save = await r.app.inject({
         method: 'POST',
         url: '/recordings',
-        payload: sampleRecording
+        payload: sampleRecording,
       });
       const { workflowId } = save.json() as { workflowId: string };
       const url = `/workflows/${workflowId}/run`;
@@ -303,14 +369,14 @@ describe('runner workflows + runs', () => {
     const launcher: BrowserLauncher = { async executeStep() {} };
     const r = buildRunnerServer(baseEnv, {
       repository: repo,
-      browserLauncher: launcher
+      browserLauncher: launcher,
     });
     await r.app.ready();
     try {
       const save = await r.app.inject({
         method: 'POST',
         url: '/recordings',
-        payload: sampleRecording
+        payload: sampleRecording,
       });
       expect(save.statusCode).toBe(200);
       const { workflowId } = save.json() as { workflowId: string };
@@ -318,7 +384,7 @@ describe('runner workflows + runs', () => {
       const start = await r.app.inject({
         method: 'POST',
         url: `/workflows/${workflowId}/run`,
-        payload: {}
+        payload: {},
       });
       expect(start.statusCode).toBe(200);
       const { runId } = start.json() as { runId: string };
@@ -332,7 +398,7 @@ describe('runner workflows + runs', () => {
 
       const list = await r.app.inject({
         method: 'GET',
-        url: `/runs?workflowId=${workflowId}`
+        url: `/runs?workflowId=${workflowId}`,
       });
       expect(list.statusCode).toBe(200);
       expect((list.json() as { runs: unknown[] }).runs.length).toBe(1);
@@ -350,27 +416,27 @@ describe('runner workflows + runs', () => {
           headless: true,
           slowMo: 100,
           contextIsolation: 'isolated',
-          browserEngine: 'chromium'
+          browserEngine: 'chromium',
         };
-      }
+      },
     };
     const r = buildRunnerServer(baseEnv, {
       repository: repo,
-      browserLauncher: launcher
+      browserLauncher: launcher,
     });
     await r.app.ready();
     try {
       const save = await r.app.inject({
         method: 'POST',
         url: '/recordings',
-        payload: sampleRecording
+        payload: sampleRecording,
       });
       const { workflowId } = save.json() as { workflowId: string };
 
       const start = await r.app.inject({
         method: 'POST',
         url: `/workflows/${workflowId}/run`,
-        payload: {}
+        payload: {},
       });
       const { runId } = start.json() as { runId: string };
 
@@ -378,11 +444,12 @@ describe('runner workflows + runs', () => {
         run: { status: string; metadata: Record<string, unknown> };
       };
       expect(graph.run.metadata).toEqual({
+        healingEnabled: false,
         headless: true,
         slowMo: 100,
         contextIsolation: 'isolated',
         browserEngine: 'chromium',
-        researchEligible: true
+        researchEligible: true,
       });
     } finally {
       await r.app.close();
@@ -396,24 +463,24 @@ describe('runner workflows + runs', () => {
       async executeStep() {
         calls++;
         if (calls === 2) throw new Error('boom');
-      }
+      },
     };
     const r = buildRunnerServer(baseEnv, {
       repository: repo,
-      browserLauncher: launcher
+      browserLauncher: launcher,
     });
     await r.app.ready();
     try {
       const save = await r.app.inject({
         method: 'POST',
         url: '/recordings',
-        payload: sampleRecording
+        payload: sampleRecording,
       });
       const { workflowId } = save.json() as { workflowId: string };
       const start = await r.app.inject({
         method: 'POST',
         url: `/workflows/${workflowId}/run`,
-        payload: {}
+        payload: {},
       });
       const { runId } = start.json() as { runId: string };
       const graph = (await waitForRunStatus(r.app, runId)) as {
@@ -429,7 +496,7 @@ describe('runner workflows + runs', () => {
   it('cancel endpoint returns 404 for unknown runs', async () => {
     const response = await runner.app.inject({
       method: 'POST',
-      url: '/runs/run_does_not_exist/cancel'
+      url: '/runs/run_does_not_exist/cancel',
     });
     expect(response.statusCode).toBe(404);
   });
@@ -441,8 +508,14 @@ describe('workflow CRUD', () => {
     const r = buildRunnerServer(baseEnv, { repository: repo });
     await r.app.ready();
     try {
-      await r.app.inject({ method: 'POST', url: '/recordings', payload: sampleRecording });
-      const { workflows } = (await r.app.inject({ method: 'GET', url: '/workflows' })).json() as {
+      await r.app.inject({
+        method: 'POST',
+        url: '/recordings',
+        payload: sampleRecording,
+      });
+      const { workflows } = (
+        await r.app.inject({ method: 'GET', url: '/workflows' })
+      ).json() as {
         workflows: { id: string; name: string }[];
       };
       const wf = workflows[0]!;
@@ -450,7 +523,7 @@ describe('workflow CRUD', () => {
       const res = await r.app.inject({
         method: 'PUT',
         url: `/workflows/${wf.id}`,
-        payload: { name: 'Renamed workflow' }
+        payload: { name: 'Renamed workflow' },
       });
       expect(res.statusCode).toBe(200);
       expect((res.json() as { name: string }).name).toBe('Renamed workflow');
@@ -464,19 +537,30 @@ describe('workflow CRUD', () => {
     const r = buildRunnerServer(baseEnv, { repository: repo });
     await r.app.ready();
     try {
-      await r.app.inject({ method: 'POST', url: '/recordings', payload: sampleRecording });
-      const { workflows } = (await r.app.inject({ method: 'GET', url: '/workflows' })).json() as {
+      await r.app.inject({
+        method: 'POST',
+        url: '/recordings',
+        payload: sampleRecording,
+      });
+      const { workflows } = (
+        await r.app.inject({ method: 'GET', url: '/workflows' })
+      ).json() as {
         workflows: { id: string }[];
       };
       const wf = workflows[0]!;
 
-      const res = await r.app.inject({ method: 'POST', url: `/workflows/${wf.id}/duplicate` });
+      const res = await r.app.inject({
+        method: 'POST',
+        url: `/workflows/${wf.id}/duplicate`,
+      });
       expect(res.statusCode).toBe(200);
       const body = res.json() as { workflowId: string; name: string };
       expect(body.workflowId).not.toBe(wf.id);
       expect(body.name).toContain('(copy)');
 
-      const list = (await r.app.inject({ method: 'GET', url: '/workflows' })).json() as {
+      const list = (
+        await r.app.inject({ method: 'GET', url: '/workflows' })
+      ).json() as {
         workflows: unknown[];
       };
       expect(list.workflows).toHaveLength(2);
@@ -490,15 +574,26 @@ describe('workflow CRUD', () => {
     const r = buildRunnerServer(baseEnv, { repository: repo });
     await r.app.ready();
     try {
-      await r.app.inject({ method: 'POST', url: '/recordings', payload: sampleRecording });
-      const { workflows } = (await r.app.inject({ method: 'GET', url: '/workflows' })).json() as {
+      await r.app.inject({
+        method: 'POST',
+        url: '/recordings',
+        payload: sampleRecording,
+      });
+      const { workflows } = (
+        await r.app.inject({ method: 'GET', url: '/workflows' })
+      ).json() as {
         workflows: { id: string }[];
       };
 
-      const res = await r.app.inject({ method: 'DELETE', url: `/workflows/${workflows[0]!.id}` });
+      const res = await r.app.inject({
+        method: 'DELETE',
+        url: `/workflows/${workflows[0]!.id}`,
+      });
       expect(res.statusCode).toBe(200);
 
-      const list = (await r.app.inject({ method: 'GET', url: '/workflows' })).json() as {
+      const list = (
+        await r.app.inject({ method: 'GET', url: '/workflows' })
+      ).json() as {
         workflows: unknown[];
       };
       expect(list.workflows).toHaveLength(0);
@@ -514,14 +609,23 @@ describe('workflow definition + versions', () => {
     const r = buildRunnerServer(baseEnv, { repository: repo });
     await r.app.ready();
     try {
-      await r.app.inject({ method: 'POST', url: '/recordings', payload: sampleRecording });
-      const { workflows } = (await r.app.inject({ method: 'GET', url: '/workflows' })).json() as {
+      await r.app.inject({
+        method: 'POST',
+        url: '/recordings',
+        payload: sampleRecording,
+      });
+      const { workflows } = (
+        await r.app.inject({ method: 'GET', url: '/workflows' })
+      ).json() as {
         workflows: { id: string }[];
       };
       const wfId = workflows[0]!.id;
 
       // Get current definition
-      const defRes = await r.app.inject({ method: 'GET', url: `/workflows/${wfId}/definition` });
+      const defRes = await r.app.inject({
+        method: 'GET',
+        url: `/workflows/${wfId}/definition`,
+      });
       expect(defRes.statusCode).toBe(200);
       const def = defRes.json() as { workflow: { steps: unknown[]; name: string } };
       expect(def.workflow.steps.length).toBeGreaterThan(0);
@@ -534,15 +638,20 @@ describe('workflow definition + versions', () => {
           name: 'Updated workflow',
           description: 'New desc',
           steps: def.workflow.steps,
-          changeSummary: 'Updated name and description'
-        }
+          changeSummary: 'Updated name and description',
+        },
       });
       expect(updateRes.statusCode).toBe(200);
 
       // Check versions
-      const versionsRes = await r.app.inject({ method: 'GET', url: `/workflows/${wfId}/versions` });
+      const versionsRes = await r.app.inject({
+        method: 'GET',
+        url: `/workflows/${wfId}/versions`,
+      });
       expect(versionsRes.statusCode).toBe(200);
-      const { versions } = versionsRes.json() as { versions: { id: string; version: number }[] };
+      const { versions } = versionsRes.json() as {
+        versions: { id: string; version: number }[];
+      };
       expect(versions.length).toBeGreaterThanOrEqual(2);
     } finally {
       await r.app.close();
@@ -550,7 +659,10 @@ describe('workflow definition + versions', () => {
   });
 
   it('returns 404 for definition of non-existent workflow', async () => {
-    const res = await runner.app.inject({ method: 'GET', url: '/workflows/wf_nope/definition' });
+    const res = await runner.app.inject({
+      method: 'GET',
+      url: '/workflows/wf_nope/definition',
+    });
     expect(res.statusCode).toBe(404);
   });
 });
@@ -559,11 +671,20 @@ describe('test-step endpoint', () => {
   it('returns ok:true when launcher succeeds', async () => {
     const repo = openWaypointDatabase(':memory:').repository;
     const launcher: BrowserLauncher = { async executeStep() {} };
-    const r = buildRunnerServer(baseEnv, { repository: repo, browserLauncher: launcher });
+    const r = buildRunnerServer(baseEnv, {
+      repository: repo,
+      browserLauncher: launcher,
+    });
     await r.app.ready();
     try {
-      await r.app.inject({ method: 'POST', url: '/recordings', payload: sampleRecording });
-      const { workflows } = (await r.app.inject({ method: 'GET', url: '/workflows' })).json() as {
+      await r.app.inject({
+        method: 'POST',
+        url: '/recordings',
+        payload: sampleRecording,
+      });
+      const { workflows } = (
+        await r.app.inject({ method: 'GET', url: '/workflows' })
+      ).json() as {
         workflows: { id: string }[];
       };
 
@@ -581,9 +702,9 @@ describe('test-step endpoint', () => {
             retryPolicy: { maxAttempts: 1, backoffMs: 0, strategy: 'fixed' },
             debug: { sourceEventIds: [], notes: [], tags: [], extra: {} },
             button: 'left',
-            clickCount: 1
-          }
-        }
+            clickCount: 1,
+          },
+        },
       });
       expect(res.statusCode).toBe(200);
       const body = res.json() as { ok: boolean; durationMs: number };
@@ -597,13 +718,24 @@ describe('test-step endpoint', () => {
   it('returns ok:false when launcher throws', async () => {
     const repo = openWaypointDatabase(':memory:').repository;
     const launcher: BrowserLauncher = {
-      async executeStep() { throw new Error('element not found'); }
+      async executeStep() {
+        throw new Error('element not found');
+      },
     };
-    const r = buildRunnerServer(baseEnv, { repository: repo, browserLauncher: launcher });
+    const r = buildRunnerServer(baseEnv, {
+      repository: repo,
+      browserLauncher: launcher,
+    });
     await r.app.ready();
     try {
-      await r.app.inject({ method: 'POST', url: '/recordings', payload: sampleRecording });
-      const { workflows } = (await r.app.inject({ method: 'GET', url: '/workflows' })).json() as {
+      await r.app.inject({
+        method: 'POST',
+        url: '/recordings',
+        payload: sampleRecording,
+      });
+      const { workflows } = (
+        await r.app.inject({ method: 'GET', url: '/workflows' })
+      ).json() as {
         workflows: { id: string }[];
       };
 
@@ -621,12 +753,15 @@ describe('test-step endpoint', () => {
             retryPolicy: { maxAttempts: 1, backoffMs: 0, strategy: 'fixed' },
             debug: { sourceEventIds: [], notes: [], tags: [], extra: {} },
             button: 'left',
-            clickCount: 1
-          }
-        }
+            clickCount: 1,
+          },
+        },
       });
       expect(res.statusCode).toBe(200);
-      const body = res.json() as { ok: boolean; error: { code: string; message: string } };
+      const body = res.json() as {
+        ok: boolean;
+        error: { code: string; message: string };
+      };
       expect(body.ok).toBe(false);
       expect(body.error.message).toContain('element not found');
     } finally {
@@ -640,23 +775,37 @@ describe('run-from endpoint', () => {
     const repo = openWaypointDatabase(':memory:').repository;
     const executedSteps: number[] = [];
     const launcher: BrowserLauncher = {
-      async executeStep(_step, ctx) { executedSteps.push(ctx.stepIndex); }
+      async executeStep(_step, ctx) {
+        executedSteps.push(ctx.stepIndex);
+      },
     };
-    const r = buildRunnerServer(baseEnv, { repository: repo, browserLauncher: launcher });
+    const r = buildRunnerServer(baseEnv, {
+      repository: repo,
+      browserLauncher: launcher,
+    });
     await r.app.ready();
     try {
-      await r.app.inject({ method: 'POST', url: '/recordings', payload: sampleRecording });
-      const { workflows } = (await r.app.inject({ method: 'GET', url: '/workflows' })).json() as {
+      await r.app.inject({
+        method: 'POST',
+        url: '/recordings',
+        payload: sampleRecording,
+      });
+      const { workflows } = (
+        await r.app.inject({ method: 'GET', url: '/workflows' })
+      ).json() as {
         workflows: { id: string }[];
       };
 
       const res = await r.app.inject({
         method: 'POST',
         url: `/workflows/${workflows[0]!.id}/run-from`,
-        payload: { fromStepIndex: 1 }
+        payload: { fromStepIndex: 1 },
       });
       expect(res.statusCode).toBe(200);
-      const { runId, fromStepIndex } = res.json() as { runId: string; fromStepIndex: number };
+      const { runId, fromStepIndex } = res.json() as {
+        runId: string;
+        fromStepIndex: number;
+      };
       expect(fromStepIndex).toBe(1);
 
       await waitForRunStatus(r.app, runId);
@@ -670,15 +819,21 @@ describe('run-from endpoint', () => {
     const r = buildRunnerServer(baseEnv, { repository: repo });
     await r.app.ready();
     try {
-      await r.app.inject({ method: 'POST', url: '/recordings', payload: sampleRecording });
-      const { workflows } = (await r.app.inject({ method: 'GET', url: '/workflows' })).json() as {
+      await r.app.inject({
+        method: 'POST',
+        url: '/recordings',
+        payload: sampleRecording,
+      });
+      const { workflows } = (
+        await r.app.inject({ method: 'GET', url: '/workflows' })
+      ).json() as {
         workflows: { id: string }[];
       };
 
       const res = await r.app.inject({
         method: 'POST',
         url: `/workflows/${workflows[0]!.id}/run-from`,
-        payload: { fromStepIndex: 999 }
+        payload: { fromStepIndex: 999 },
       });
       expect(res.statusCode).toBe(400);
     } finally {
@@ -691,22 +846,34 @@ describe('diagnostics export', () => {
   it('returns a redacted diagnostics bundle for a completed run', async () => {
     const repo = openWaypointDatabase(':memory:').repository;
     const launcher: BrowserLauncher = { async executeStep() {} };
-    const r = buildRunnerServer(baseEnv, { repository: repo, browserLauncher: launcher });
+    const r = buildRunnerServer(baseEnv, {
+      repository: repo,
+      browserLauncher: launcher,
+    });
     await r.app.ready();
     try {
-      await r.app.inject({ method: 'POST', url: '/recordings', payload: sampleRecording });
-      const { workflows } = (await r.app.inject({ method: 'GET', url: '/workflows' })).json() as {
+      await r.app.inject({
+        method: 'POST',
+        url: '/recordings',
+        payload: sampleRecording,
+      });
+      const { workflows } = (
+        await r.app.inject({ method: 'GET', url: '/workflows' })
+      ).json() as {
         workflows: { id: string }[];
       };
       const start = await r.app.inject({
         method: 'POST',
         url: `/workflows/${workflows[0]!.id}/run`,
-        payload: {}
+        payload: {},
       });
       const { runId } = start.json() as { runId: string };
       await waitForRunStatus(r.app, runId);
 
-      const res = await r.app.inject({ method: 'GET', url: `/runs/${runId}/diagnostics` });
+      const res = await r.app.inject({
+        method: 'GET',
+        url: `/runs/${runId}/diagnostics`,
+      });
       expect(res.statusCode).toBe(200);
       const bundle = res.json() as {
         exportedAt: string;
@@ -724,7 +891,10 @@ describe('diagnostics export', () => {
   });
 
   it('returns 404 for non-existent run', async () => {
-    const res = await runner.app.inject({ method: 'GET', url: '/runs/run_nope/diagnostics' });
+    const res = await runner.app.inject({
+      method: 'GET',
+      url: '/runs/run_nope/diagnostics',
+    });
     expect(res.statusCode).toBe(404);
   });
 });
@@ -736,15 +906,26 @@ describe('workflow splice (re-record from here)', () => {
     await r.app.ready();
     try {
       // Create initial workflow with 2 steps
-      await r.app.inject({ method: 'POST', url: '/recordings', payload: sampleRecording });
-      const { workflows } = (await r.app.inject({ method: 'GET', url: '/workflows' })).json() as {
+      await r.app.inject({
+        method: 'POST',
+        url: '/recordings',
+        payload: sampleRecording,
+      });
+      const { workflows } = (
+        await r.app.inject({ method: 'GET', url: '/workflows' })
+      ).json() as {
         workflows: { id: string }[];
       };
       const wfId = workflows[0]!.id;
 
       // Get the initial step count
-      const defRes = await r.app.inject({ method: 'GET', url: `/workflows/${wfId}/definition` });
-      const initialSteps = (defRes.json() as { workflow: { steps: { type: string }[] } }).workflow.steps;
+      const defRes = await r.app.inject({
+        method: 'GET',
+        url: `/workflows/${wfId}/definition`,
+      });
+      const initialSteps = (
+        defRes.json() as { workflow: { steps: { type: string }[] } }
+      ).workflow.steps;
 
       // Splice from step index 1 (keep step 0, replace everything after)
       const spliceRecording = {
@@ -752,33 +933,60 @@ describe('workflow splice (re-record from here)', () => {
         name: 'Splice recording',
         startedAt: '2026-04-15T10:00:00.000Z',
         events: [
-          { eventId: 's1', type: 'navigate', atMs: 0, tabId: 't1', url: 'https://new-page.com' },
           {
-            eventId: 's2', type: 'click', atMs: 50, tabId: 't1',
-            target: { primaryLocator: { kind: 'role', role: 'button', name: 'Submit' }, fallbackLocators: [] },
-            button: 'left'
+            eventId: 's1',
+            type: 'navigate',
+            atMs: 0,
+            tabId: 't1',
+            url: 'https://new-page.com',
           },
           {
-            eventId: 's3', type: 'click', atMs: 100, tabId: 't1',
-            target: { primaryLocator: { kind: 'testId', testId: 'confirm' }, fallbackLocators: [] },
-            button: 'left'
-          }
-        ]
+            eventId: 's2',
+            type: 'click',
+            atMs: 50,
+            tabId: 't1',
+            target: {
+              primaryLocator: { kind: 'role', role: 'button', name: 'Submit' },
+              fallbackLocators: [],
+            },
+            button: 'left',
+          },
+          {
+            eventId: 's3',
+            type: 'click',
+            atMs: 100,
+            tabId: 't1',
+            target: {
+              primaryLocator: { kind: 'testId', testId: 'confirm' },
+              fallbackLocators: [],
+            },
+            button: 'left',
+          },
+        ],
       };
 
       const res = await r.app.inject({
         method: 'POST',
         url: `/workflows/${wfId}/splice`,
-        payload: { fromStepIndex: 1, recording: spliceRecording }
+        payload: { fromStepIndex: 1, recording: spliceRecording },
       });
       expect(res.statusCode).toBe(200);
-      const body = res.json() as { workflowId: string; workflowVersion: number; stepsReplaced: number };
+      const body = res.json() as {
+        workflowId: string;
+        workflowVersion: number;
+        stepsReplaced: number;
+      };
       expect(body.workflowId).toBe(wfId);
       expect(body.stepsReplaced).toBe(initialSteps.length - 1);
 
       // Verify the spliced workflow
-      const updatedDef = await r.app.inject({ method: 'GET', url: `/workflows/${wfId}/definition` });
-      const updatedWorkflow = (updatedDef.json() as { workflow: { steps: { type: string }[] } }).workflow;
+      const updatedDef = await r.app.inject({
+        method: 'GET',
+        url: `/workflows/${wfId}/definition`,
+      });
+      const updatedWorkflow = (
+        updatedDef.json() as { workflow: { steps: { type: string }[] } }
+      ).workflow;
       // First step should be from the original, rest from the new recording
       expect(updatedWorkflow.steps[0]!.type).toBe(initialSteps[0]!.type);
       expect(updatedWorkflow.steps.length).toBeGreaterThan(1);
@@ -792,14 +1000,20 @@ describe('workflow splice (re-record from here)', () => {
     const r = buildRunnerServer(baseEnv, { repository: repo });
     await r.app.ready();
     try {
-      await r.app.inject({ method: 'POST', url: '/recordings', payload: sampleRecording });
-      const { workflows } = (await r.app.inject({ method: 'GET', url: '/workflows' })).json() as {
+      await r.app.inject({
+        method: 'POST',
+        url: '/recordings',
+        payload: sampleRecording,
+      });
+      const { workflows } = (
+        await r.app.inject({ method: 'GET', url: '/workflows' })
+      ).json() as {
         workflows: { id: string }[];
       };
       const res = await r.app.inject({
         method: 'POST',
         url: `/workflows/${workflows[0]!.id}/splice`,
-        payload: { fromStepIndex: 999, recording: sampleRecording }
+        payload: { fromStepIndex: 999, recording: sampleRecording },
       });
       expect(res.statusCode).toBe(400);
     } finally {
@@ -811,7 +1025,7 @@ describe('workflow splice (re-record from here)', () => {
     const res = await runner.app.inject({
       method: 'POST',
       url: '/workflows/wf_nope/splice',
-      payload: { fromStepIndex: 0, recording: sampleRecording }
+      payload: { fromStepIndex: 0, recording: sampleRecording },
     });
     expect(res.statusCode).toBe(404);
   });
@@ -826,7 +1040,7 @@ describe('auth profile CRUD', () => {
       const create = await r.app.inject({
         method: 'POST',
         url: '/auth-profiles',
-        payload: { name: 'Test profile', browserEngine: 'chromium' }
+        payload: { name: 'Test profile', browserEngine: 'chromium' },
       });
       expect(create.statusCode).toBe(200);
       const { profile } = create.json() as { profile: { id: string; name: string } };
@@ -834,14 +1048,21 @@ describe('auth profile CRUD', () => {
 
       const list = await r.app.inject({ method: 'GET', url: '/auth-profiles' });
       expect(list.statusCode).toBe(200);
-      const { profiles } = list.json() as { profiles: { id: string; status: string }[] };
+      const { profiles } = list.json() as {
+        profiles: { id: string; status: string }[];
+      };
       expect(profiles).toHaveLength(1);
       expect(profiles[0]!.status).toBe('never_initialized');
 
-      const del = await r.app.inject({ method: 'DELETE', url: `/auth-profiles/${profile.id}` });
+      const del = await r.app.inject({
+        method: 'DELETE',
+        url: `/auth-profiles/${profile.id}`,
+      });
       expect(del.statusCode).toBe(200);
 
-      const listAfter = (await r.app.inject({ method: 'GET', url: '/auth-profiles' })).json() as {
+      const listAfter = (
+        await r.app.inject({ method: 'GET', url: '/auth-profiles' })
+      ).json() as {
         profiles: unknown[];
       };
       expect(listAfter.profiles).toHaveLength(0);
@@ -851,7 +1072,10 @@ describe('auth profile CRUD', () => {
   });
 
   it('returns 404 when deleting a non-existent profile', async () => {
-    const res = await runner.app.inject({ method: 'DELETE', url: '/auth-profiles/nope' });
+    const res = await runner.app.inject({
+      method: 'DELETE',
+      url: '/auth-profiles/nope',
+    });
     expect(res.statusCode).toBe(404);
   });
 });
@@ -863,8 +1087,14 @@ describe('schedule CRUD', () => {
     await r.app.ready();
     try {
       // Need a workflow first.
-      await r.app.inject({ method: 'POST', url: '/recordings', payload: sampleRecording });
-      const { workflows } = (await r.app.inject({ method: 'GET', url: '/workflows' })).json() as {
+      await r.app.inject({
+        method: 'POST',
+        url: '/recordings',
+        payload: sampleRecording,
+      });
+      const { workflows } = (
+        await r.app.inject({ method: 'GET', url: '/workflows' })
+      ).json() as {
         workflows: { id: string }[];
       };
       const wfId = workflows[0]!.id;
@@ -880,17 +1110,21 @@ describe('schedule CRUD', () => {
           hour: 9,
           minute: 0,
           enabled: true,
-          missedRunPolicy: 'skip'
-        }
+          missedRunPolicy: 'skip',
+        },
       });
       expect(create.statusCode).toBe(200);
       const { schedule } = create.json() as { schedule: { id: string } };
-      const parsed = ScheduleSchema.parse((create.json() as { schedule: unknown }).schedule);
+      const parsed = ScheduleSchema.parse(
+        (create.json() as { schedule: unknown }).schedule
+      );
       expect(parsed.pattern.kind).toBe('weekdays');
       expect(parsed.hour).toBe(9);
 
       // List schedules.
-      const list = (await r.app.inject({ method: 'GET', url: '/schedules' })).json() as {
+      const list = (
+        await r.app.inject({ method: 'GET', url: '/schedules' })
+      ).json() as {
         schedules: unknown[];
       };
       expect(list.schedules).toHaveLength(1);
@@ -899,17 +1133,24 @@ describe('schedule CRUD', () => {
       const update = await r.app.inject({
         method: 'PUT',
         url: `/schedules/${schedule.id}`,
-        payload: { hour: 10, pattern: { kind: 'daily' } }
+        payload: { hour: 10, pattern: { kind: 'daily' } },
       });
       expect(update.statusCode).toBe(200);
-      const updated = (update.json() as { schedule: { hour: number; pattern: { kind: string } } }).schedule;
+      const updated = (
+        update.json() as { schedule: { hour: number; pattern: { kind: string } } }
+      ).schedule;
       expect(updated.hour).toBe(10);
       expect(updated.pattern.kind).toBe('daily');
 
       // Delete schedule.
-      const del = await r.app.inject({ method: 'DELETE', url: `/schedules/${schedule.id}` });
+      const del = await r.app.inject({
+        method: 'DELETE',
+        url: `/schedules/${schedule.id}`,
+      });
       expect(del.statusCode).toBe(200);
-      const listAfter = (await r.app.inject({ method: 'GET', url: '/schedules' })).json() as {
+      const listAfter = (
+        await r.app.inject({ method: 'GET', url: '/schedules' })
+      ).json() as {
         schedules: unknown[];
       };
       expect(listAfter.schedules).toHaveLength(0);
@@ -929,8 +1170,8 @@ describe('schedule CRUD', () => {
         hour: 8,
         minute: 0,
         enabled: true,
-        missedRunPolicy: 'skip'
-      }
+        missedRunPolicy: 'skip',
+      },
     });
     expect(res.statusCode).toBe(404);
   });

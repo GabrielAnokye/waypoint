@@ -167,27 +167,37 @@ ALTER TABLE run_steps ADD COLUMN resolved_truth_id TEXT;
 ALTER TABLE run_steps ADD COLUMN expected_truth_id TEXT;
 `;
 
+export const SELF_HEALING_TELEMETRY_SQL = `
+ALTER TABLE run_steps ADD COLUMN healing_attempted INTEGER NOT NULL DEFAULT 0 CHECK (healing_attempted IN (0,1));
+ALTER TABLE run_steps ADD COLUMN healing_outcome TEXT CHECK (healing_outcome IN ('autonomous_repair','needs_manual_intervention','unrecoverable_failure'));
+ALTER TABLE run_steps ADD COLUMN healed_score REAL;
+ALTER TABLE run_steps ADD COLUMN ambiguity_margin REAL;
+ALTER TABLE run_steps ADD COLUMN regenerated_locator TEXT;
+ALTER TABLE run_steps ADD COLUMN top_candidates TEXT;
+ALTER TABLE run_steps ADD COLUMN healing_latency_ms REAL;
+`;
+
 /** Ordered migration list applied to every opened database. */
 export const MIGRATIONS: Migration[] = [
   {
     id: 1,
     name: '001_initial_schema',
-    sql: INITIAL_SCHEMA_SQL
+    sql: INITIAL_SCHEMA_SQL,
   },
   {
     id: 2,
     name: '002_schedules_v2',
-    sql: SCHEDULES_V2_SQL
+    sql: SCHEDULES_V2_SQL,
   },
   {
     id: 3,
     name: '003_run_steps_used_fallback',
-    sql: RUN_STEPS_USED_FALLBACK_SQL
+    sql: RUN_STEPS_USED_FALLBACK_SQL,
   },
   {
     id: 4,
     name: '004_run_steps_truth_classification',
-    sql: RUN_STEPS_TRUTH_CLASSIFICATION_SQL
-  }
+    sql: RUN_STEPS_TRUTH_CLASSIFICATION_SQL,
+  },
+  { id: 5, name: '005_self_healing_telemetry', sql: SELF_HEALING_TELEMETRY_SQL },
 ];
-

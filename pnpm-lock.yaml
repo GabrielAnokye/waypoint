@@ -119,6 +119,9 @@ importers:
       dotenv:
         specifier: ^16.4.7
         version: 16.6.1
+      esbuild:
+        specifier: ^0.28.2
+        version: 0.28.2
       fastify:
         specifier: ^4.28.1
         version: 4.29.1
@@ -161,6 +164,9 @@ importers:
 
   packages/shared-types:
     dependencies:
+      dom-accessibility-api:
+        specifier: ^0.7.1
+        version: 0.7.1
       zod:
         specifier: ^3.23.8
         version: 3.25.76
@@ -1076,6 +1082,9 @@ packages:
 
   deep-is@0.1.4:
     resolution: {integrity: sha512-oIPzksmTg4/MriiaYGO+okXDT7ztn/w3Eptv/+gSIdMdKsJo0u4CfYNFJPy+4SKMuCqGw2wxnA+URMg3t8a/bQ==}
+
+  dom-accessibility-api@0.7.1:
+    resolution: {integrity: sha512-vdnCeZD+3wZ+8h8xXL/ZtBlvvoobOFyPzSiIfO6sGOZDqjFx4aLMAjZhl4rawj5xYz3UwP6Tgvyh0iH4IOCVnQ==}
 
   dotenv@16.6.1:
     resolution: {integrity: sha512-uBq4egWHTcTt33a72vpSG0z3HnPuIl6NqYcTrKEg2azoEyl2hpW0zqlxysq2pK9HlDIHyHyakeYaYnSAwd8bow==}
@@ -2605,6 +2614,8 @@ snapshots:
   deep-eql@5.0.2: {}
 
   deep-is@0.1.4: {}
+
+  dom-accessibility-api@0.7.1: {}
 
   dotenv@16.6.1: {}
 

@@ -63,9 +63,30 @@ pnpm test          # Vitest unit + integration suites
 pnpm test:e2e      # Playwright end-to-end (builds first)
 ```
 
-## Project Status
+## Research benchmark (Weeks 10–12)
 
-The automation engine and the locator resolution layer are in place. The
-experimental apparatus — the DOM mutation engine, the benchmark harness, and the
-self-healing repair algorithm — is the remaining work. See
-[docs/RESEARCH-PLAN.md](docs/RESEARCH-PLAN.md).
+The six-class mutation engine, 16-state / 120-action benchmark, and weighted
+self-healing engine are implemented. Run the complete N=5 matrix:
+
+```bash
+pnpm benchmark:run
+```
+
+This executes 16,800 baseline evaluations, 16,800 evaluations with healing,
+and 840 additional ambiguous-Delete threshold trials. Progress and complete
+result tables print in the terminal. JSON, CSV, the frozen captured workflows,
+raw observations and a SHA-256 manifest are written to
+[`docs/benchmark-results/`](docs/benchmark-results/BENCHMARK-REPORT.md).
+
+For a short rehearsal without replacing the committed empirical results:
+
+```bash
+pnpm benchmark:run --repetitions 1 --output-dir /tmp/waypoint-benchmark-demo
+```
+
+The fixture server supports `?variant=unlabeled` and
+`?mutation=cosmetic|attribute|structural|layout|content|semantic` (comma-separated
+mutations can be combined). Ordinary replay keeps healing disabled; enable it
+with `healingEnabled: true` in the run request. See
+[benchmark methodology](docs/BENCHMARK-METHODOLOGY.md) for scoring, experimental
+controls, denominators, and limitations.

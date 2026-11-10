@@ -9,9 +9,15 @@
 
 import type { RawRecordedEventInput, Target } from '@waypoint/shared-types';
 
+import { captureSnapshot } from '@waypoint/shared-types/dom-snapshot';
+
 import { EventBuffer } from './event-buffer.js';
 import { shouldRedact } from './redact.js';
-import { buildCssCandidate, buildXpathFallback, type ElementDescriptor } from './selector.js';
+import {
+  buildCssCandidate,
+  buildXpathFallback,
+  type ElementDescriptor,
+} from './selector.js';
 
 let eventCounter = 0;
 
@@ -21,7 +27,8 @@ function nextEventId(): string {
 
 // ---- Element snapshot helpers ----
 
-function getFramePath(): Array<{ index: number; name?: string; url?: string }> | undefined {
+function getFramePath():
+  Array<{ index: number; name?: string; url?: string }> | undefined {
   try {
     if (window === window.top) return undefined;
     const entries: Array<{ index: number; name?: string; url?: string }> = [];
@@ -40,7 +47,7 @@ function getFramePath(): Array<{ index: number; name?: string; url?: string }> |
       entries.unshift({
         index,
         ...(fe.name ? { name: fe.name } : {}),
-        ...(fe.src ? { url: fe.src } : {})
+        ...(fe.src ? { url: fe.src } : {}),
       });
       current = parent;
     }
@@ -80,7 +87,7 @@ function getDescriptor(el: Element, depth = 0): ElementDescriptor {
     ...(testId ? { testId } : {}),
     ...(classList ? { classList } : {}),
     ...(nthOfType ? { nthOfType } : {}),
-    parentDescriptors
+    parentDescriptors,
   };
 }
 
@@ -102,11 +109,19 @@ function getRole(el: Element): string | undefined {
   const explicit = el.getAttribute('role');
   if (explicit) return explicit;
   const implicitMap: Record<string, string> = {
-    A: 'link', BUTTON: 'button', INPUT: 'textbox',
-    SELECT: 'combobox', TEXTAREA: 'textbox', IMG: 'img',
-    NAV: 'navigation', MAIN: 'main', HEADER: 'banner',
-    FOOTER: 'contentinfo', FORM: 'form', TABLE: 'table',
-    DIALOG: 'dialog'
+    A: 'link',
+    BUTTON: 'button',
+    INPUT: 'textbox',
+    SELECT: 'combobox',
+    TEXTAREA: 'textbox',
+    IMG: 'img',
+    NAV: 'navigation',
+    MAIN: 'main',
+    HEADER: 'banner',
+    FOOTER: 'contentinfo',
+    FORM: 'form',
+    TABLE: 'table',
+    DIALOG: 'dialog',
   };
   const inputEl = el as HTMLInputElement;
   if (el.tagName === 'INPUT') {
@@ -122,10 +137,13 @@ function getAccessibleName(el: Element): string | undefined {
   if (ariaLabel) return ariaLabel;
   const ariaLabelledBy = el.getAttribute('aria-labelledby');
   if (ariaLabelledBy) {
-    const parts = ariaLabelledBy.split(/\s+/).map((id) => {
-      const ref = document.getElementById(id);
-      return ref?.textContent?.trim() ?? '';
-    }).filter(Boolean);
+    const parts = ariaLabelledBy
+      .split(/\s+/)
+      .map((id) => {
+        const ref = document.getElementById(id);
+        return ref?.textContent?.trim() ?? '';
+      })
+      .filter(Boolean);
     if (parts.length > 0) return parts.join(' ');
   }
   if (el.tagName === 'INPUT' || el.tagName === 'SELECT' || el.tagName === 'TEXTAREA') {
@@ -198,7 +216,8 @@ function buildTarget(el: Element): Target {
     primaryLocator: primary as Target['primaryLocator'],
     fallbackLocators: fallbacks as Target['fallbackLocators'],
     ...(framePath ? { framePath } : {}),
-    ...(dataTruthId ? { dataTruthId } : {})
+    snapshot: captureSnapshot(el),
+    ...(dataTruthId ? { dataTruthId } : {}),
   };
 }
 
@@ -210,13 +229,8 @@ function buildElementSnapshot(el: Element) {
   const inputEl = el as HTMLInputElement;
 
   return {
-    tagName: el.tagName,
     textContent: el.textContent?.trim()?.slice(0, 200) || undefined,
-    attributes: Object.fromEntries(
-      [...el.attributes]
-        .filter((a) => !a.name.startsWith('on'))
-        .map((a) => [a.name, a.value])
-    ),
+    ...captureSnapshot(el),
     role,
     accessibleName: name,
     labelText,
@@ -228,17 +242,24 @@ function buildElementSnapshot(el: Element) {
     xpathFallback: buildXpathFallback(desc),
     boundingRect: (() => {
       const r = el.getBoundingClientRect();
-      return { x: Math.round(r.x), y: Math.round(r.y), width: Math.round(r.width), height: Math.round(r.height) };
+      return {
+        x: Math.round(r.x),
+        y: Math.round(r.y),
+        width: Math.round(r.width),
+        height: Math.round(r.height),
+      };
     })(),
     framePath: getFramePath(),
     pageUrl: window.location.href,
     isPasswordField: inputEl.type === 'password',
     isSensitiveHeuristic: shouldRedact({
       type: inputEl.type,
-      ...(el.getAttribute('autocomplete') ? { autocomplete: el.getAttribute('autocomplete')! } : {}),
+      ...(el.getAttribute('autocomplete')
+        ? { autocomplete: el.getAttribute('autocomplete')! }
+        : {}),
       ...(el.getAttribute('name') ? { name: el.getAttribute('name')! } : {}),
-      ...(el.id ? { id: el.id } : {})
-    }).redacted
+      ...(el.id ? { id: el.id } : {}),
+    }).redacted,
   };
 }
 
@@ -261,7 +282,7 @@ export class ContentRecorder {
     this.tabId = options.tabId;
     this.startedAtMs = options.startedAtMs;
     this.buffer = new EventBuffer({
-      onFlush: options.onEvents
+      onFlush: options.onEvents,
     });
   }
 
@@ -277,7 +298,11 @@ export class ContentRecorder {
     const onClickCapture = (e: MouseEvent) => {
       const el = e.target as Element | null;
       if (!el) return;
-      const buttonMap: Record<number, 'left' | 'middle' | 'right'> = { 0: 'left', 1: 'middle', 2: 'right' };
+      const buttonMap: Record<number, 'left' | 'middle' | 'right'> = {
+        0: 'left',
+        1: 'middle',
+        2: 'right',
+      };
       this.buffer.push({
         eventId: nextEventId(),
         type: 'click',
@@ -285,7 +310,7 @@ export class ContentRecorder {
         tabId: this.tabId,
         target: buildTarget(el),
         element: buildElementSnapshot(el),
-        button: buttonMap[e.button] ?? 'left'
+        button: buttonMap[e.button] ?? 'left',
       });
     };
 
@@ -294,9 +319,11 @@ export class ContentRecorder {
       if (!el) return;
       const redaction = shouldRedact({
         type: (el as HTMLInputElement).type,
-        ...(el.getAttribute('autocomplete') ? { autocomplete: el.getAttribute('autocomplete')! } : {}),
+        ...(el.getAttribute('autocomplete')
+          ? { autocomplete: el.getAttribute('autocomplete')! }
+          : {}),
         ...(el.getAttribute('name') ? { name: el.getAttribute('name')! } : {}),
-        ...(el.id ? { id: el.id } : {})
+        ...(el.id ? { id: el.id } : {}),
       });
       this.buffer.push({
         eventId: nextEventId(),
@@ -306,7 +333,7 @@ export class ContentRecorder {
         target: buildTarget(el),
         element: buildElementSnapshot(el),
         value: redaction.redacted ? '' : el.value,
-        redacted: redaction.redacted
+        redacted: redaction.redacted,
       });
     };
 
@@ -322,7 +349,7 @@ export class ContentRecorder {
         tabId: this.tabId,
         target: buildTarget(el),
         option: { by: 'label', value: selected.text },
-        element: buildElementSnapshot(el)
+        element: buildElementSnapshot(el),
       });
     };
 
@@ -335,7 +362,7 @@ export class ContentRecorder {
         atMs: this.atMs(),
         tabId: this.tabId,
         target: buildTarget(el),
-        element: buildElementSnapshot(el)
+        element: buildElementSnapshot(el),
       });
     };
 
@@ -347,7 +374,7 @@ export class ContentRecorder {
         type: 'focus',
         atMs: this.atMs(),
         tabId: this.tabId,
-        target: buildTarget(el)
+        target: buildTarget(el),
       });
     };
 
@@ -359,7 +386,7 @@ export class ContentRecorder {
         type: 'blur',
         atMs: this.atMs(),
         tabId: this.tabId,
-        target: buildTarget(el)
+        target: buildTarget(el),
       });
     };
 
@@ -397,19 +424,25 @@ export class ContentRecorder {
       () => doc.removeEventListener('focusout', onFocusOut, opts),
       () => window.removeEventListener('popstate', onPopState),
       () => window.removeEventListener('hashchange', onHashChange),
-      () => { history.pushState = origPushState; },
-      () => { history.replaceState = origReplaceState; }
+      () => {
+        history.pushState = origPushState;
+      },
+      () => {
+        history.replaceState = origReplaceState;
+      }
     );
   }
 
-  private emitHistoryChange(kind: 'pushState' | 'replaceState' | 'popstate' | 'hashchange'): void {
+  private emitHistoryChange(
+    kind: 'pushState' | 'replaceState' | 'popstate' | 'hashchange'
+  ): void {
     this.buffer.push({
       eventId: nextEventId(),
       type: 'historyChange',
       atMs: this.atMs(),
       tabId: this.tabId,
       kind,
-      url: window.location.href
+      url: window.location.href,
     });
   }
 

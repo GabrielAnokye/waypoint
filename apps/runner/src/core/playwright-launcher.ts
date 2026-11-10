@@ -10,31 +10,41 @@ import {
   type BrowserContext,
   type FrameLocator,
   type Locator as PwLocator,
-  type Page
+  type Page,
 } from 'playwright';
 
-import { ATTACHED_TARGET_ATTRIBUTE, type Locator, type LocatorFamily, type RunEngine, type WorkflowStep } from '@waypoint/shared-types';
+import {
+  ATTACHED_TARGET_ATTRIBUTE,
+  type HealingTelemetry,
+  type Locator,
+  type LocatorFamily,
+  type RunEngine,
+  type WorkflowStep,
+} from '@waypoint/shared-types';
+
+import { heal, HealingError } from './healer.js';
+import { executeElementAction, stepFrame } from './element-action.js';
 
 import {
   AttachedBrowserError,
   assertSafeAttachedNavigation,
   samePageUrl,
   explainAttachFailure,
-  selectTargetPage
+  selectTargetPage,
 } from './debug-browser.js';
 import type {
   BrowserLauncher,
   ExecuteStepContext,
   ExecutionConditions,
   RunTargetOptions,
-  StepExecutionResult
+  StepExecutionResult,
 } from './executor.js';
 import {
   resolveLocator,
   LocatorResolutionError,
   isResolveFailure,
   type LocatablePage,
-  type LocatableHandle
+  type LocatableHandle,
 } from './locate.js';
 
 // ---- Adapter: wrap Playwright Page to satisfy LocatablePage ----
@@ -50,7 +60,7 @@ function adaptPage(page: Page): LocatablePage {
     getByPlaceholder: (placeholder: string) =>
       adaptHandle(page.getByPlaceholder(placeholder)),
     locator: (selector: string) => adaptHandle(page.locator(selector)),
-    frameLocator: (selector: string) => adaptFrameLocator(page.frameLocator(selector))
+    frameLocator: (selector: string) => adaptFrameLocator(page.frameLocator(selector)),
   };
 }
 
@@ -58,7 +68,7 @@ function adaptHandle(loc: PwLocator): LocatableHandle {
   return {
     count: () => loc.count(),
     // Expose the underlying Playwright locator for action methods
-    _pw: loc
+    _pw: loc,
   } as LocatableHandle & { _pw: PwLocator };
 }
 
@@ -73,7 +83,7 @@ function adaptFrameLocator(fl: FrameLocator): LocatablePage {
     getByPlaceholder: (placeholder: string) =>
       adaptHandle(fl.getByPlaceholder(placeholder)),
     locator: (selector: string) => adaptHandle(fl.locator(selector)),
-    frameLocator: (selector: string) => adaptFrameLocator(fl.frameLocator(selector))
+    frameLocator: (selector: string) => adaptFrameLocator(fl.frameLocator(selector)),
   };
 }
 
@@ -91,6 +101,8 @@ export interface PlaywrightLauncherOptions {
   headless?: boolean;
   /** Restrict benchmark execution to one family; omit for normal replay. */
   allowedFamily?: LocatorFamily;
+  /** Explicit opt-in; raw baseline replay remains unchanged. */
+  healingEnabled?: boolean;
   /** Slow down actions by this many ms for visibility. Default: 0. */
   slowMo?: number;
   /** Auth profile storage state path (for pre-authenticated sessions). */
@@ -135,7 +147,7 @@ export class PlaywrightBrowserLauncher implements BrowserLauncher {
       mode: 'isolated',
       headless: false,
       slowMo: 50,
-      ...options
+      ...options,
     };
   }
 
@@ -143,18 +155,23 @@ export class PlaywrightBrowserLauncher implements BrowserLauncher {
     if (this.context) return this.context;
 
     if (this.options.mode === 'attached') {
-      if (!this.options.cdpEndpoint) throw new AttachedBrowserError('attached_browser_unavailable', 'No CDP endpoint is configured. Configure BROWSER_CDP_ENDPOINT for the browser containing the selected tab.');
+      if (!this.options.cdpEndpoint)
+        throw new AttachedBrowserError(
+          'attached_browser_unavailable',
+          'No CDP endpoint is configured. Configure BROWSER_CDP_ENDPOINT for the browser containing the selected tab.'
+        );
       return this.attachOverCdp(this.options.cdpEndpoint);
     }
 
     const launchOptions: Parameters<typeof chromium.launch>[0] = {};
-    if (this.options.headless !== undefined) launchOptions.headless = this.options.headless;
+    if (this.options.headless !== undefined)
+      launchOptions.headless = this.options.headless;
     if (this.options.slowMo !== undefined) launchOptions.slowMo = this.options.slowMo;
 
     this.browser = await chromium.launch(launchOptions);
 
     const contextOptions: Parameters<Browser['newContext']>[0] = {
-      viewport: { width: 1280, height: 800 }
+      viewport: { width: 1280, height: 800 },
     };
 
     if (this.options.storageStatePath) {
@@ -185,30 +202,55 @@ export class PlaywrightBrowserLauncher implements BrowserLauncher {
    */
   private async attachOverCdp(endpoint: string): Promise<BrowserContext> {
     const target = this.runTarget.attachedTarget;
-    if (!target) throw new AttachedBrowserError('attached_target_required', 'Attached playback requires exact tab identity from the Waypoint side panel.');
+    if (!target)
+      throw new AttachedBrowserError(
+        'attached_target_required',
+        'Attached playback requires exact tab identity from the Waypoint side panel.'
+      );
     try {
       this.browser = await chromium.connectOverCDP(endpoint, {
-        timeout: 5000, slowMo: this.options.slowMo ?? 0, noDefaults: true
+        timeout: 5000,
+        slowMo: this.options.slowMo ?? 0,
+        noDefaults: true,
       });
     } catch (error) {
-      throw new AttachedBrowserError('attached_browser_unavailable', explainAttachFailure(endpoint, error));
+      throw new AttachedBrowserError(
+        'attached_browser_unavailable',
+        explainAttachFailure(endpoint, error)
+      );
     }
     this.attached = true; // Every subsequent cleanup must disconnect, not close tabs.
     try {
-      const page = await selectTargetPage(this.browser.contexts().flatMap(context => context.pages()), target);
+      const page = await selectTargetPage(
+        this.browser.contexts().flatMap((context) => context.pages()),
+        target
+      );
       this.context = page.context();
       const session = await this.context.newCDPSession(page);
       try {
         const { targetInfo } = await session.send('Target.getTargetInfo');
         this.attachedTargetId = targetInfo.targetId;
-      } finally { await session.detach(); }
+      } finally {
+        await session.detach();
+      }
       // Consume the proof only after exact selection. Never use it as an action locator.
-      const consumed = await page.evaluate(({ attribute, token, url }) => {
-        if (location.href !== url || document.documentElement.getAttribute(attribute) !== token) return false;
-        document.documentElement.removeAttribute(attribute);
-        return true;
-      }, { attribute: ATTACHED_TARGET_ATTRIBUTE, token: target.token, url: target.url });
-      if (!consumed) throw new AttachedBrowserError('attached_target_changed', 'The selected document changed during attachment. Select the page and try again.');
+      const consumed = await page.evaluate(
+        ({ attribute, token, url }) => {
+          if (
+            location.href !== url ||
+            document.documentElement.getAttribute(attribute) !== token
+          )
+            return false;
+          document.documentElement.removeAttribute(attribute);
+          return true;
+        },
+        { attribute: ATTACHED_TARGET_ATTRIBUTE, token: target.token, url: target.url }
+      );
+      if (!consumed)
+        throw new AttachedBrowserError(
+          'attached_target_changed',
+          'The selected document changed during attachment. Select the page and try again.'
+        );
       this.pages.set(`tab_${this.tabAliasCounter++}`, page);
       this.activePage = page;
       this.initialPageUrl = page.url();
@@ -216,8 +258,10 @@ export class PlaywrightBrowserLauncher implements BrowserLauncher {
     } catch (error) {
       await this.dispose();
       if (error instanceof AttachedBrowserError) throw error;
-      throw new AttachedBrowserError('attached_target_unavailable',
-        `Could not prepare the selected tab. Keep it open and retry: ${error instanceof Error ? error.message.split('\n')[0] : String(error)}`);
+      throw new AttachedBrowserError(
+        'attached_target_unavailable',
+        `Could not prepare the selected tab. Keep it open and retry: ${error instanceof Error ? error.message.split('\n')[0] : String(error)}`
+      );
     }
   }
 
@@ -231,12 +275,16 @@ export class PlaywrightBrowserLauncher implements BrowserLauncher {
 
   async executeStep(
     step: WorkflowStep,
-    _ctx: ExecuteStepContext
+    ctx: ExecuteStepContext
   ): Promise<StepExecutionResult | void> {
     const page = await this.getActivePage();
     const timeout = step.timeoutMs ?? 30_000;
     if (this.initialPageUrl !== undefined) {
-      if (!samePageUrl(page.url(), this.initialPageUrl)) throw new AttachedBrowserError('attached_target_changed', 'The selected page navigated before playback began. Run again from the intended tab.');
+      if (!samePageUrl(page.url(), this.initialPageUrl))
+        throw new AttachedBrowserError(
+          'attached_target_changed',
+          'The selected page navigated before playback began. Run again from the intended tab.'
+        );
       this.initialPageUrl = undefined;
     }
 
@@ -245,22 +293,32 @@ export class PlaywrightBrowserLauncher implements BrowserLauncher {
         return this.executeGoto(page, step, timeout);
 
       case 'click':
-        return this.executeClick(page, step, timeout);
-
       case 'type':
-        return this.executeType(page, step, timeout);
-
       case 'select':
-        return this.executeSelect(page, step, timeout);
-
       case 'press':
-        return this.executePress(page, step, timeout);
+        return executeElementAction(page, step, {
+          ...(this.options.allowedFamily
+            ? { allowedFamily: this.options.allowedFamily }
+            : {}),
+          healingEnabled: ctx.healingEnabled ?? this.options.healingEnabled ?? false,
+          beforeAction: (locator) => this.highlightElement(page, locator),
+        });
 
       case 'waitFor':
-        return this.executeWaitFor(page, step, timeout);
+        return this.executeWaitFor(
+          page,
+          step,
+          timeout,
+          ctx.healingEnabled ?? this.options.healingEnabled ?? false
+        );
 
       case 'assert':
-        return this.executeAssert(page, step, timeout);
+        return this.executeAssert(
+          page,
+          step,
+          timeout,
+          ctx.healingEnabled ?? this.options.healingEnabled ?? false
+        );
 
       case 'newTab':
         return this.executeNewTab(step);
@@ -289,7 +347,7 @@ export class PlaywrightBrowserLauncher implements BrowserLauncher {
     }
     await page.goto(step.url, {
       waitUntil: step.waitUntil,
-      timeout
+      timeout,
     });
   }
 
@@ -309,51 +367,40 @@ export class PlaywrightBrowserLauncher implements BrowserLauncher {
     try {
       await pwLocator.focus({ timeout: 1000 }).catch(() => {});
 
-      await pwLocator.evaluate((el) => {
-        el.setAttribute('data-waypoint-highlighted', 'true');
-        const htmlEl = el as HTMLElement;
-        if (!htmlEl.hasAttribute('data-waypoint-prev-outline')) {
-          htmlEl.setAttribute('data-waypoint-prev-outline', htmlEl.style.outline || '');
-          htmlEl.setAttribute('data-waypoint-prev-offset', htmlEl.style.outlineOffset || '');
-          htmlEl.setAttribute('data-waypoint-prev-shadow', htmlEl.style.boxShadow || '');
-        }
-        htmlEl.style.setProperty('outline', '3px solid #1a73e8', 'important');
-        htmlEl.style.setProperty('outline-offset', '2px', 'important');
-        htmlEl.style.setProperty('box-shadow', '0 0 0 4px rgba(26, 115, 232, 0.4)', 'important');
-        htmlEl.style.setProperty('transition', 'outline 0.15s ease, box-shadow 0.15s ease', 'important');
-      }).catch(() => {});
+      await pwLocator
+        .evaluate((el) => {
+          el.setAttribute('data-waypoint-highlighted', 'true');
+          const htmlEl = el as HTMLElement;
+          if (!htmlEl.hasAttribute('data-waypoint-prev-outline')) {
+            htmlEl.setAttribute(
+              'data-waypoint-prev-outline',
+              htmlEl.style.outline || ''
+            );
+            htmlEl.setAttribute(
+              'data-waypoint-prev-offset',
+              htmlEl.style.outlineOffset || ''
+            );
+            htmlEl.setAttribute(
+              'data-waypoint-prev-shadow',
+              htmlEl.style.boxShadow || ''
+            );
+          }
+          htmlEl.style.setProperty('outline', '3px solid #1a73e8', 'important');
+          htmlEl.style.setProperty('outline-offset', '2px', 'important');
+          htmlEl.style.setProperty(
+            'box-shadow',
+            '0 0 0 4px rgba(26, 115, 232, 0.4)',
+            'important'
+          );
+          htmlEl.style.setProperty(
+            'transition',
+            'outline 0.15s ease, box-shadow 0.15s ease',
+            'important'
+          );
+        })
+        .catch(() => {});
     } catch {
       // Best-effort visual feedback; never fail a playback step if highlight fails
-    }
-  }
-
-  /**
-   * Highlights the element located at viewport coordinates (x, y) during a coordinate click.
-   */
-  private async highlightElementAtPoint(page: Page, x: number, y: number): Promise<void> {
-    await this.clearHighlight(page);
-
-    try {
-      await page.evaluate(({ cx, cy }) => {
-        const el = document.elementFromPoint(cx, cy);
-        if (!el) return;
-        el.setAttribute('data-waypoint-highlighted', 'true');
-        const htmlEl = el as HTMLElement;
-        if (typeof htmlEl.focus === 'function') {
-          htmlEl.focus({ preventScroll: true });
-        }
-        if (!htmlEl.hasAttribute('data-waypoint-prev-outline')) {
-          htmlEl.setAttribute('data-waypoint-prev-outline', htmlEl.style.outline || '');
-          htmlEl.setAttribute('data-waypoint-prev-offset', htmlEl.style.outlineOffset || '');
-          htmlEl.setAttribute('data-waypoint-prev-shadow', htmlEl.style.boxShadow || '');
-        }
-        htmlEl.style.setProperty('outline', '3px solid #1a73e8', 'important');
-        htmlEl.style.setProperty('outline-offset', '2px', 'important');
-        htmlEl.style.setProperty('box-shadow', '0 0 0 4px rgba(26, 115, 232, 0.4)', 'important');
-        htmlEl.style.setProperty('transition', 'outline 0.15s ease, box-shadow 0.15s ease', 'important');
-      }, { cx: x, cy: y }).catch(() => {});
-    } catch {
-      // Best-effort
     }
   }
 
@@ -362,247 +409,80 @@ export class PlaywrightBrowserLauncher implements BrowserLauncher {
    */
   private async clearHighlight(page: Page): Promise<void> {
     try {
-      await page.evaluate(() => {
-        const highlighted = document.querySelectorAll('[data-waypoint-highlighted="true"]');
-        highlighted.forEach((el) => {
-          const htmlEl = el as HTMLElement;
-          const prevOutline = htmlEl.getAttribute('data-waypoint-prev-outline') ?? '';
-          const prevOffset = htmlEl.getAttribute('data-waypoint-prev-offset') ?? '';
-          const prevShadow = htmlEl.getAttribute('data-waypoint-prev-shadow') ?? '';
-          htmlEl.style.removeProperty('outline');
-          htmlEl.style.removeProperty('outline-offset');
-          htmlEl.style.removeProperty('box-shadow');
-          htmlEl.style.removeProperty('transition');
-          if (prevOutline) htmlEl.style.outline = prevOutline;
-          if (prevOffset) htmlEl.style.outlineOffset = prevOffset;
-          if (prevShadow) htmlEl.style.boxShadow = prevShadow;
-          htmlEl.removeAttribute('data-waypoint-highlighted');
-          htmlEl.removeAttribute('data-waypoint-prev-outline');
-          htmlEl.removeAttribute('data-waypoint-prev-offset');
-          htmlEl.removeAttribute('data-waypoint-prev-shadow');
-        });
-      }).catch(() => {});
+      await page
+        .evaluate(() => {
+          const highlighted = document.querySelectorAll(
+            '[data-waypoint-highlighted="true"]'
+          );
+          highlighted.forEach((el) => {
+            const htmlEl = el as HTMLElement;
+            const prevOutline = htmlEl.getAttribute('data-waypoint-prev-outline') ?? '';
+            const prevOffset = htmlEl.getAttribute('data-waypoint-prev-offset') ?? '';
+            const prevShadow = htmlEl.getAttribute('data-waypoint-prev-shadow') ?? '';
+            htmlEl.style.removeProperty('outline');
+            htmlEl.style.removeProperty('outline-offset');
+            htmlEl.style.removeProperty('box-shadow');
+            htmlEl.style.removeProperty('transition');
+            if (prevOutline) htmlEl.style.outline = prevOutline;
+            if (prevOffset) htmlEl.style.outlineOffset = prevOffset;
+            if (prevShadow) htmlEl.style.boxShadow = prevShadow;
+            htmlEl.removeAttribute('data-waypoint-highlighted');
+            htmlEl.removeAttribute('data-waypoint-prev-outline');
+            htmlEl.removeAttribute('data-waypoint-prev-offset');
+            htmlEl.removeAttribute('data-waypoint-prev-shadow');
+          });
+        })
+        .catch(() => {});
     } catch {
       // Best-effort
     }
   }
 
-  private async executeClick(
+  private async resolveCheck(
     page: Page,
-    step: Extract<WorkflowStep, { type: 'click' }>,
-    timeout: number
-  ): Promise<StepExecutionResult> {
-    // ---- Coordinate bypass ----
-    // Coordinates are positions, not element identities. They cannot go
-    // through resolveLocator (which would try to find a DOM element) so
-    // we act positionally and verify what was actually hit.
-    const coordinate = this.options.allowedFamily === 'coordinate'
-      ? [step.primaryLocator, ...step.fallbackLocators].find((loc) => loc.kind === 'coordinates')
-      : this.options.allowedFamily === undefined && step.primaryLocator.kind === 'coordinates'
-        ? step.primaryLocator : undefined;
-    if (coordinate?.kind === 'coordinates') {
-      return this.executeCoordinateClick(page, step, coordinate);
+    step: WorkflowStep,
+    enabled: boolean
+  ): Promise<
+    HealingTelemetry & {
+      pwLocator: PwLocator;
+      resolvedLocator: Locator;
+      usedFallback: boolean;
     }
-
-    const adapted = adaptPage(page);
-    const result = await resolveLocator(adapted, step, this.options.allowedFamily
-      ? { allowedFamily: this.options.allowedFamily } : {});
-
-    if (isResolveFailure(result)) {
-      throw new LocatorResolutionError(result);
-    }
-
-    const pwLocator = getPwLocator(result.handle);
-    await this.highlightElement(page, pwLocator);
-    const resolvedTruthId = (await pwLocator.getAttribute('data-truth-id').catch(() => null)) ?? undefined;
-    await pwLocator.click({
-      button: step.button,
-      clickCount: step.clickCount,
-      timeout
-    });
-
-    return {
-      resolvedLocator: result.resolvedLocator,
-      usedFallback: result.usedFallback,
-      resolvedTruthId
-    };
-  }
-
-  /**
-   * Execute a click at viewport coordinates and verify what was hit.
-   *
-   * This is the honest implementation: the click lands exactly where
-   * the coordinate says, and we check whether anything interactive is
-   * actually there. If the layout shifted, the point may land on empty
-   * space or a different element — both are observable failures that the
-   * study can measure, rather than the false 100% success the old code
-   * produced.
-   */
-  private async executeCoordinateClick(
-    page: Page,
-    step: Extract<WorkflowStep, { type: 'click' }>,
-    coord: Extract<Locator, { kind: 'coordinates' }>
-  ): Promise<StepExecutionResult> {
-    // Check that something is actually at this point before clicking.
-    // The function runs inside the browser, but TypeScript checks it
-    // against the runner's Node tsconfig which has no DOM lib. We pass
-    // a string expression to avoid the false type error.
-    const hitInfo = await page.evaluate<{
-      tag: string;
-      id?: string;
-      truthId?: string;
-      testId?: string;
-      text?: string;
-      isInteractive: boolean;
-    } | null>(`(() => {
-      const el = document.elementFromPoint(${coord.x}, ${coord.y});
-      if (!el) return null;
+  > {
+    const result = await resolveLocator(
+      adaptPage(page),
+      step,
+      this.options.allowedFamily ? { allowedFamily: this.options.allowedFamily } : {}
+    );
+    if (!isResolveFailure(result))
       return {
-        tag: el.tagName.toLowerCase(),
-        id: el.id || undefined,
-        truthId: el.getAttribute('data-truth-id') || undefined,
-        testId: el.getAttribute('data-testid') || undefined,
-        text: (el.textContent || '').trim().slice(0, 80) || undefined,
-        isInteractive: ['A', 'BUTTON', 'INPUT', 'SELECT', 'TEXTAREA'].includes(el.tagName) ||
-          el.getAttribute('role') === 'button' ||
-          el.hasAttribute('onclick') ||
-          (el.getAttribute('tabindex') || '-1') !== '-1'
-      };
-    })()`);
-
-    if (!hitInfo || !hitInfo.isInteractive) {
-      throw new Error(
-        `Coordinate click failed: nothing interactive at (${coord.x}, ${coord.y}) — ` +
-        `the point is outside the viewport, over empty space, or hit a non-interactive element (${hitInfo?.tag ?? 'none'}).`
-      );
-    }
-
-    await this.highlightElementAtPoint(page, coord.x, coord.y);
-
-    // Execute the actual click at the coordinate
-    await page.mouse.click(coord.x, coord.y, {
-      button: step.button === 'right' ? 'right' : step.button === 'middle' ? 'middle' : 'left',
-      clickCount: step.clickCount
-    });
-
-    return {
-      resolvedLocator: { kind: 'coordinates', x: coord.x, y: coord.y },
-      usedFallback: coord !== step.primaryLocator,
-      resolvedTruthId: hitInfo.truthId
-    };
-  }
-
-  private async executeType(
-    page: Page,
-    step: Extract<WorkflowStep, { type: 'type' }>,
-    timeout: number
-  ): Promise<StepExecutionResult> {
-    const adapted = adaptPage(page);
-    const result = await resolveLocator(adapted, step, this.options.allowedFamily
-      ? { allowedFamily: this.options.allowedFamily } : {});
-
-    if (isResolveFailure(result)) {
-      throw new LocatorResolutionError(result);
-    }
-
-    const pwLocator = getPwLocator(result.handle);
-    await this.highlightElement(page, pwLocator);
-    const resolvedTruthId = (await pwLocator.getAttribute('data-truth-id').catch(() => null)) ?? undefined;
-    if (step.clearBefore) {
-      await pwLocator.clear({ timeout });
-    }
-    await pwLocator.fill(step.value, { timeout });
-
-    return {
-      resolvedLocator: result.resolvedLocator,
-      usedFallback: result.usedFallback,
-      resolvedTruthId
-    };
-  }
-
-  private async executeSelect(
-    page: Page,
-    step: Extract<WorkflowStep, { type: 'select' }>,
-    timeout: number
-  ): Promise<StepExecutionResult> {
-    const adapted = adaptPage(page);
-    const result = await resolveLocator(adapted, step, this.options.allowedFamily
-      ? { allowedFamily: this.options.allowedFamily } : {});
-
-    if (isResolveFailure(result)) {
-      throw new LocatorResolutionError(result);
-    }
-
-    const pwLocator = getPwLocator(result.handle);
-    await this.highlightElement(page, pwLocator);
-    const resolvedTruthId = (await pwLocator.getAttribute('data-truth-id').catch(() => null)) ?? undefined;
-    const { by, value } = step.option;
-
-    if (by === 'label') {
-      await pwLocator.selectOption({ label: String(value) }, { timeout });
-    } else if (by === 'value') {
-      await pwLocator.selectOption({ value: String(value) }, { timeout });
-    } else {
-      // by === 'index'
-      await pwLocator.selectOption({ index: Number(value) }, { timeout });
-    }
-
-    return {
-      resolvedLocator: result.resolvedLocator,
-      usedFallback: result.usedFallback,
-      resolvedTruthId
-    };
-  }
-
-  private async executePress(
-    page: Page,
-    step: Extract<WorkflowStep, { type: 'press' }>,
-    timeout: number
-  ): Promise<StepExecutionResult> {
-    // If the step has a target locator, focus the element first
-    if ('primaryLocator' in step && step.primaryLocator) {
-      const adapted = adaptPage(page);
-      const result = await resolveLocator(adapted, step, this.options.allowedFamily
-      ? { allowedFamily: this.options.allowedFamily } : {});
-
-      if (isResolveFailure(result)) {
-        throw new LocatorResolutionError(result);
-      }
-
-      const pwLocator = getPwLocator(result.handle);
-      await this.highlightElement(page, pwLocator);
-      const resolvedTruthId = (await pwLocator.getAttribute('data-truth-id').catch(() => null)) ?? undefined;
-      // Build the key combo with modifiers
-      const key = buildKeyCombo(step.key, step.modifiers);
-      await pwLocator.press(key, { timeout });
-
-      return {
+        pwLocator: getPwLocator(result.handle),
         resolvedLocator: result.resolvedLocator,
         usedFallback: result.usedFallback,
-        resolvedTruthId
+        healingAttempted: false,
       };
-    }
-
-    // No target — press on the page (keyboard-level)
-    const key = buildKeyCombo(step.key, step.modifiers);
-    await page.keyboard.press(key);
-    return {};
+    if (!enabled || !step.snapshot) throw new LocatorResolutionError(result);
+    const decision = await heal(stepFrame(page, step), step.snapshot);
+    if (!decision.selected) throw new HealingError(decision.telemetry);
+    return {
+      pwLocator: decision.selected,
+      resolvedLocator: decision.telemetry.regeneratedLocator!,
+      usedFallback: true,
+      ...decision.telemetry,
+    };
   }
 
   private async executeWaitFor(
     page: Page,
     step: Extract<WorkflowStep, { type: 'waitFor' }>,
-    timeout: number
+    timeout: number,
+    healingEnabled: boolean
   ): Promise<StepExecutionResult> {
-    const adapted = adaptPage(page);
-    const result = await resolveLocator(adapted, step, this.options.allowedFamily
-      ? { allowedFamily: this.options.allowedFamily } : {});
-
-    if (isResolveFailure(result)) {
-      throw new LocatorResolutionError(result);
-    }
-
-    const pwLocator = getPwLocator(result.handle);
+    const { pwLocator, ...result } = await this.resolveCheck(
+      page,
+      step,
+      healingEnabled
+    );
 
     // Map our condition to Playwright's waitFor state
     const stateMap: Record<string, 'attached' | 'detached' | 'visible' | 'hidden'> = {
@@ -611,13 +491,14 @@ export class PlaywrightBrowserLauncher implements BrowserLauncher {
       visible: 'visible',
       hidden: 'hidden',
       enabled: 'visible', // Playwright doesn't have 'enabled' state — use visible + isEnabled check
-      disabled: 'visible'
+      disabled: 'visible',
     };
 
     const state = stateMap[step.condition] ?? 'visible';
     await pwLocator.waitFor({ state, timeout });
 
-    const resolvedTruthId = (await pwLocator.getAttribute('data-truth-id').catch(() => null)) ?? undefined;
+    const resolvedTruthId =
+      (await pwLocator.getAttribute('data-truth-id').catch(() => null)) ?? undefined;
 
     // Extra check for enabled/disabled conditions
     if (step.condition === 'enabled') {
@@ -629,27 +510,24 @@ export class PlaywrightBrowserLauncher implements BrowserLauncher {
     }
 
     return {
-      resolvedLocator: result.resolvedLocator,
-      usedFallback: result.usedFallback,
-      resolvedTruthId
+      ...result,
+      resolvedTruthId,
     };
   }
 
   private async executeAssert(
     page: Page,
     step: Extract<WorkflowStep, { type: 'assert' }>,
-    timeout: number
+    timeout: number,
+    healingEnabled: boolean
   ): Promise<StepExecutionResult> {
-    const adapted = adaptPage(page);
-    const result = await resolveLocator(adapted, step, this.options.allowedFamily
-      ? { allowedFamily: this.options.allowedFamily } : {});
-
-    if (isResolveFailure(result)) {
-      throw new LocatorResolutionError(result);
-    }
-
-    const pwLocator = getPwLocator(result.handle);
-    const resolvedTruthId = (await pwLocator.getAttribute('data-truth-id').catch(() => null)) ?? undefined;
+    const { pwLocator, ...result } = await this.resolveCheck(
+      page,
+      step,
+      healingEnabled
+    );
+    const resolvedTruthId =
+      (await pwLocator.getAttribute('data-truth-id').catch(() => null)) ?? undefined;
     const assertion = step.assertion;
 
     switch (assertion.kind) {
@@ -660,7 +538,8 @@ export class PlaywrightBrowserLauncher implements BrowserLauncher {
       }
       case 'hidden': {
         const visible = await pwLocator.isVisible({ timeout });
-        if (visible) throw new Error('Assertion failed: element is visible but expected hidden.');
+        if (visible)
+          throw new Error('Assertion failed: element is visible but expected hidden.');
         break;
       }
       case 'textEquals': {
@@ -702,9 +581,8 @@ export class PlaywrightBrowserLauncher implements BrowserLauncher {
     }
 
     return {
-      resolvedLocator: result.resolvedLocator,
-      usedFallback: result.usedFallback,
-      resolvedTruthId
+      ...result,
+      resolvedTruthId,
     };
   }
 
@@ -712,7 +590,8 @@ export class PlaywrightBrowserLauncher implements BrowserLauncher {
     step: Extract<WorkflowStep, { type: 'newTab' }>
   ): Promise<void> {
     await this.ensureBrowser();
-    if (this.attached && step.initialUrl) assertSafeAttachedNavigation(this.activePage!.url(), step.initialUrl);
+    if (this.attached && step.initialUrl)
+      assertSafeAttachedNavigation(this.activePage!.url(), step.initialUrl);
     const newPage = await this.context!.newPage();
     const alias = `tab_${this.tabAliasCounter++}`;
     this.pages.set(alias, newPage);
@@ -755,15 +634,27 @@ export class PlaywrightBrowserLauncher implements BrowserLauncher {
       await this.dispose();
       this.runTarget = options;
       this.attachedTargetId = undefined;
-      if (!options.attachedTarget) throw new AttachedBrowserError('attached_target_required', 'Select a webpage in the Waypoint side panel and run again.');
-      if (options.recordedUrl) assertSafeAttachedNavigation(options.attachedTarget.url, options.recordedUrl);
+      if (!options.attachedTarget)
+        throw new AttachedBrowserError(
+          'attached_target_required',
+          'Select a webpage in the Waypoint side panel and run again.'
+        );
+      if (options.recordedUrl)
+        assertSafeAttachedNavigation(options.attachedTarget.url, options.recordedUrl);
       await this.ensureBrowser(); // Fail before accepting a run; never launch/create anything.
-      if (options.reloadBeforeRun && (!options.recordedUrl || samePageUrl(this.activePage!.url(), options.recordedUrl))) {
-        try { await this.activePage!.reload({ waitUntil: 'load', timeout: 30_000 }); }
-        catch (error) {
+      if (
+        options.reloadBeforeRun &&
+        (!options.recordedUrl ||
+          samePageUrl(this.activePage!.url(), options.recordedUrl))
+      ) {
+        try {
+          await this.activePage!.reload({ waitUntil: 'load', timeout: 30_000 });
+        } catch (error) {
           await this.dispose();
-          throw new AttachedBrowserError('attached_reload_failed',
-            `The selected tab could not reload. Check the page and retry: ${error instanceof Error ? error.message.split('\n')[0] : String(error)}`);
+          throw new AttachedBrowserError(
+            'attached_reload_failed',
+            `The selected tab could not reload. Check the page and retry: ${error instanceof Error ? error.message.split('\n')[0] : String(error)}`
+          );
         }
         this.initialPageUrl = this.activePage!.url();
       }
@@ -771,7 +662,11 @@ export class PlaywrightBrowserLauncher implements BrowserLauncher {
     }
     this.runTarget = options;
     if (this.context) {
-      try { await this.context.close(); } catch { /* already gone */ }
+      try {
+        await this.context.close();
+      } catch {
+        /* already gone */
+      }
       this.context = null;
     }
     this.pages.clear();
@@ -791,7 +686,11 @@ export class PlaywrightBrowserLauncher implements BrowserLauncher {
       // the context would discard the user's real tabs. Drop our references
       // and disconnect, leaving the window exactly as we found it.
       if (this.browser) {
-        try { await this.browser.close(); } catch { /* disconnects, does not kill Chrome */ }
+        try {
+          await this.browser.close();
+        } catch {
+          /* disconnects, does not kill Chrome */
+        }
         this.browser = null;
       }
       this.context = null;
@@ -802,11 +701,19 @@ export class PlaywrightBrowserLauncher implements BrowserLauncher {
     }
 
     if (this.context) {
-      try { await this.context.close(); } catch { /* swallow */ }
+      try {
+        await this.context.close();
+      } catch {
+        /* swallow */
+      }
       this.context = null;
     }
     if (this.browser) {
-      try { await this.browser.close(); } catch { /* swallow */ }
+      try {
+        await this.browser.close();
+      } catch {
+        /* swallow */
+      }
       this.browser = null;
     }
     this.pages.clear();
@@ -815,30 +722,33 @@ export class PlaywrightBrowserLauncher implements BrowserLauncher {
 
   getExecutionConditions(): ExecutionConditions {
     return {
-      ...(this.options.allowedFamily ? { allowedFamily: this.options.allowedFamily } : {}),
+      ...(this.options.allowedFamily
+        ? { allowedFamily: this.options.allowedFamily }
+        : {}),
       headless: Boolean(this.options.headless),
       slowMo: this.options.slowMo ?? 0,
       contextIsolation: this.options.mode === 'attached' ? 'attached' : 'isolated',
       browserEngine: this.options.mode === 'attached' ? 'cdp' : 'chromium',
       researchEligible: this.options.mode !== 'attached',
-      ...(this.options.mode === 'attached' ? {
-        cdpEndpoint: this.options.cdpEndpoint,
-        selectedTabId: this.runTarget.attachedTarget?.tabId,
-        selectedWindowId: this.runTarget.attachedTarget?.windowId,
-        selectedUrl: this.runTarget.attachedTarget?.url,
-        ...(this.runTarget.attachedTarget?.documentId ? { selectedDocumentId: this.runTarget.attachedTarget.documentId } : {}),
-        ...(this.attachedTargetId ? { selectedTargetId: this.attachedTargetId } : {})
-      } : {})
+      ...(this.options.mode === 'attached'
+        ? {
+            cdpEndpoint: this.options.cdpEndpoint,
+            selectedTabId: this.runTarget.attachedTarget?.tabId,
+            selectedWindowId: this.runTarget.attachedTarget?.windowId,
+            selectedUrl: this.runTarget.attachedTarget?.url,
+            ...(this.runTarget.attachedTarget?.documentId
+              ? { selectedDocumentId: this.runTarget.attachedTarget.documentId }
+              : {}),
+            ...(this.attachedTargetId
+              ? { selectedTargetId: this.attachedTargetId }
+              : {}),
+          }
+        : {}),
     };
   }
 }
 
 // ---- Helpers ----
-
-function buildKeyCombo(key: string, modifiers: Array<'Alt' | 'Control' | 'Meta' | 'Shift'>): string {
-  if (modifiers.length === 0) return key;
-  return [...modifiers, key].join('+');
-}
 
 /**
  * Creates a production-ready PlaywrightBrowserLauncher.

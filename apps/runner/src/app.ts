@@ -4,10 +4,7 @@ import { randomUUID } from 'node:crypto';
 import Fastify, { type FastifyInstance } from 'fastify';
 
 import { compileRecording } from '@waypoint/compiler';
-import {
-  openWaypointDatabase,
-  type WaypointRepository
-} from '@waypoint/db';
+import { openWaypointDatabase, type WaypointRepository } from '@waypoint/db';
 import { createRuntimePaths } from '@waypoint/db/runtime-paths';
 import { createLogger } from '@waypoint/logger';
 import {
@@ -28,13 +25,13 @@ import {
   type RunEngine,
   type RunSummary,
   type Schedule,
-  type Workflow
+  type Workflow,
 } from '@waypoint/shared-types';
 
 import {
   executeWorkflow,
   noopBrowserLauncher,
-  type BrowserLauncher
+  type BrowserLauncher,
 } from './core/executor.js';
 import { buildRunGraph } from './core/persist.js';
 import { RunRegistry } from './core/run-registry.js';
@@ -83,7 +80,7 @@ export function buildRunnerServer(
 ): RunnerServer {
   const logger = createLogger({
     level: env.LOG_LEVEL,
-    name: 'waypoint-runner'
+    name: 'waypoint-runner',
   });
   const runtimePaths = createRuntimePaths();
   const app = Fastify({ logger: false });
@@ -117,7 +114,7 @@ export function buildRunnerServer(
       status: 'ok',
       service: 'runner',
       version: RUNNER_VERSION,
-      uptimeSeconds: process.uptime()
+      uptimeSeconds: process.uptime(),
     })
   );
 
@@ -125,13 +122,13 @@ export function buildRunnerServer(
     service: 'runner' as const,
     version: RUNNER_VERSION,
     active: registry.activeRunIds(),
-    lastRun
+    lastRun,
   }));
 
   app.get('/config', async () => ({
     host: env.RUNNER_HOST,
     port: env.RUNNER_PORT,
-    runtimePaths
+    runtimePaths,
   }));
 
   app.get('/compiler-sample', async () => {
@@ -145,9 +142,9 @@ export function buildRunnerServer(
           type: 'navigate',
           atMs: 0,
           tabId: 'tab_main',
-          url: 'https://example.com'
-        }
-      ]
+          url: 'https://example.com',
+        },
+      ],
     });
 
     return { workflow };
@@ -160,12 +157,12 @@ export function buildRunnerServer(
     }
     const workflow = compileRecording(parsed.data);
     const version = repository.saveWorkflowDefinition(workflow, {
-      sourceRecordingId: parsed.data.recordingId
+      sourceRecordingId: parsed.data.recordingId,
     });
     return {
       recordingId: parsed.data.recordingId,
       workflowId: version.workflowId,
-      workflowVersion: version.version
+      workflowVersion: version.version,
     };
   });
 
@@ -177,8 +174,8 @@ export function buildRunnerServer(
       enabled: w.enabled,
       latestVersion: w.latestVersion,
       updatedAt: w.updatedAt,
-      tags: w.tags
-    }))
+      tags: w.tags,
+    })),
   }));
 
   app.post('/workflows/:workflowId/run', async (request, reply) => {
@@ -205,7 +202,7 @@ export function buildRunnerServer(
         message:
           'This runner has no attached browser configured. Start Chrome with ' +
           '--remote-debugging-port and set BROWSER_CDP_ENDPOINT, or run with ' +
-          'the isolated engine.'
+          'the isolated engine.',
       });
     }
 
@@ -216,7 +213,7 @@ export function buildRunnerServer(
         runId: activeRunId,
         message:
           `Run ${activeRunId} is still in progress in that browser. Wait for ` +
-          'it to finish or cancel it before starting another.'
+          'it to finish or cancel it before starting another.',
       });
     }
 
@@ -228,9 +225,13 @@ export function buildRunnerServer(
     const firstGoto = workflow.steps.find((s) => s.enabled && s.type === 'goto');
     try {
       await runLauncher.resetForRun?.({
-        ...(parsed.data.attachedTarget && { attachedTarget: parsed.data.attachedTarget }),
-        ...(parsed.data.reloadBeforeRun !== undefined && { reloadBeforeRun: parsed.data.reloadBeforeRun }),
-        ...(firstGoto?.type === 'goto' && { recordedUrl: firstGoto.url })
+        ...(parsed.data.attachedTarget && {
+          attachedTarget: parsed.data.attachedTarget,
+        }),
+        ...(parsed.data.reloadBeforeRun !== undefined && {
+          reloadBeforeRun: parsed.data.reloadBeforeRun,
+        }),
+        ...(firstGoto?.type === 'goto' && { recordedUrl: firstGoto.url }),
       });
     } catch (err) {
       busyLaunchers.delete(runLauncher);
@@ -244,7 +245,7 @@ export function buildRunnerServer(
       runId,
       workflowId,
       status: 'running',
-      startedAt: new Date().toISOString()
+      startedAt: new Date().toISOString(),
     });
 
     // Fire and forget — caller polls /runs/:id for completion.
@@ -253,13 +254,14 @@ export function buildRunnerServer(
         const events = executeWorkflow(workflow, {
           runId,
           ...(parsed.data.authProfileId !== undefined && {
-            authProfileId: parsed.data.authProfileId
+            authProfileId: parsed.data.authProfileId,
           }),
           ...(parsed.data.debugMode !== undefined && {
-            debugMode: parsed.data.debugMode
+            debugMode: parsed.data.debugMode,
           }),
           signal: entry.abort.signal,
-          launcher: runLauncher
+          launcher: runLauncher,
+          healingEnabled: parsed.data.healingEnabled ?? false,
         });
         const executionConditions =
           typeof runLauncher.getExecutionConditions === 'function'
@@ -267,18 +269,20 @@ export function buildRunnerServer(
             : {
                 headless: false,
                 slowMo: 0,
-                contextIsolation: parsed.data.engine === 'attached' ? 'attached' : 'isolated',
-                browserEngine: parsed.data.engine === 'attached' ? 'cdp' : 'chromium'
+                contextIsolation:
+                  parsed.data.engine === 'attached' ? 'attached' : 'isolated',
+                browserEngine: parsed.data.engine === 'attached' ? 'cdp' : 'chromium',
               };
         const graph = await buildRunGraph(workflow, events, {
           workflowVersionId: latest.id,
           ...(parsed.data.authProfileId !== undefined && {
-            authProfileId: parsed.data.authProfileId
+            authProfileId: parsed.data.authProfileId,
           }),
           metadata: {
             ...executionConditions,
-            researchEligible: parsed.data.engine !== 'attached'
-          }
+            researchEligible: parsed.data.engine !== 'attached',
+            healingEnabled: parsed.data.healingEnabled ?? false,
+          },
         });
         repository.saveRunGraph(graph);
         registry.setStatus(runId, graph.run.status);
@@ -291,7 +295,7 @@ export function buildRunnerServer(
           startedAt: graph.run.startedAt,
           finishedAt: graph.run.finishedAt,
           errorCode: graph.run.errorCode,
-          errorMessage: graph.run.errorMessage
+          errorMessage: graph.run.errorMessage,
         };
       } catch (err) {
         logger.error({ err, runId }, 'run execution crashed');
@@ -324,14 +328,14 @@ export function buildRunnerServer(
       startedAt: r.startedAt,
       finishedAt: r.finishedAt,
       errorCode: r.errorCode,
-      errorMessage: r.errorMessage
+      errorMessage: r.errorMessage,
     });
 
     if (!workflowId) {
       return { runs: repository.listRuns().map(toSummary) };
     }
     return {
-      runs: repository.listRunsForWorkflow(workflowId).map(toSummary)
+      runs: repository.listRunsForWorkflow(workflowId).map(toSummary),
     };
   });
 
@@ -374,15 +378,15 @@ export function buildRunnerServer(
       name: `${workflow.name} (copy)`,
       workflowVersion: 1,
       createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
     };
     const version = repository.saveWorkflowDefinition(duplicated, {
-      changeSummary: `Duplicated from ${workflowId}`
+      changeSummary: `Duplicated from ${workflowId}`,
     });
     return {
       workflowId: newId,
       workflowVersion: version.version,
-      name: duplicated.name
+      name: duplicated.name,
     };
   });
 
@@ -400,26 +404,28 @@ export function buildRunnerServer(
     const updated: Workflow = {
       ...existing,
       ...(parsed.data.name !== undefined && { name: parsed.data.name }),
-      ...(parsed.data.description !== undefined && { description: parsed.data.description || undefined }),
+      ...(parsed.data.description !== undefined && {
+        description: parsed.data.description || undefined,
+      }),
       ...(parsed.data.steps !== undefined && { steps: parsed.data.steps }),
       ...(parsed.data.tags !== undefined && { tags: parsed.data.tags }),
       workflowVersion: existing.workflowVersion + 1,
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
     };
     const version = repository.saveWorkflowDefinition(updated, {
-      changeSummary: parsed.data.changeSummary ?? 'Edited via workflow editor'
+      changeSummary: parsed.data.changeSummary ?? 'Edited via workflow editor',
     });
 
     // Also update the workflow record metadata
     repository.updateWorkflow(workflowId, {
       ...(parsed.data.name !== undefined && { name: parsed.data.name }),
-      ...(parsed.data.tags !== undefined && { tags: parsed.data.tags })
+      ...(parsed.data.tags !== undefined && { tags: parsed.data.tags }),
     });
 
     return {
       workflowId,
       workflowVersion: version.version,
-      workflow: updated
+      workflow: updated,
     };
   });
 
@@ -434,7 +440,9 @@ export function buildRunnerServer(
     const { workflowId } = request.params as { workflowId: string };
     const body = request.body as { fromStepIndex?: number; recording?: unknown } | null;
     if (!body || typeof body.fromStepIndex !== 'number' || !body.recording) {
-      return reply.code(400).send({ error: 'fromStepIndex (number) and recording (object) are required.' });
+      return reply
+        .code(400)
+        .send({ error: 'fromStepIndex (number) and recording (object) are required.' });
     }
     const { fromStepIndex } = body;
 
@@ -462,18 +470,18 @@ export function buildRunnerServer(
       ...existing,
       steps: splicedSteps,
       workflowVersion: existing.workflowVersion + 1,
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
     };
 
     const version = repository.saveWorkflowDefinition(updated, {
       changeSummary: `Re-recorded from step ${fromStepIndex + 1}: replaced ${stepsReplaced} step(s) with ${compiled.steps.length} new step(s)`,
-      sourceRecordingId: parsed.data.recordingId
+      sourceRecordingId: parsed.data.recordingId,
     });
 
     return {
       workflowId,
       workflowVersion: version.version,
-      stepsReplaced
+      stepsReplaced,
     };
   });
 
@@ -489,8 +497,8 @@ export function buildRunnerServer(
         version: v.version,
         createdAt: v.createdAt,
         changeSummary: v.changeSummary,
-        createdBy: v.createdBy
-      }))
+        createdBy: v.createdBy,
+      })),
     };
   });
 
@@ -509,11 +517,11 @@ export function buildRunnerServer(
         runId: `test_${randomUUID()}`,
         stepIndex: 0,
         attempt: 1,
-        signal: new AbortController().signal
+        signal: new AbortController().signal,
       });
       return {
         ok: true,
-        durationMs: Date.now() - stepStartMs
+        durationMs: Date.now() - stepStartMs,
       };
     } catch (err) {
       return {
@@ -521,8 +529,8 @@ export function buildRunnerServer(
         durationMs: Date.now() - stepStartMs,
         error: {
           code: 'step_failed',
-          message: err instanceof Error ? err.message : 'Step test failed.'
-        }
+          message: err instanceof Error ? err.message : 'Step test failed.',
+        },
       };
     }
   });
@@ -533,7 +541,8 @@ export function buildRunnerServer(
     if (!parsed.success) {
       return reply.code(400).send({ error: parsed.error.flatten() });
     }
-    const workflow: Workflow | null = repository.getLatestWorkflowDefinition(workflowId);
+    const workflow: Workflow | null =
+      repository.getLatestWorkflowDefinition(workflowId);
     if (!workflow) return reply.code(404).send({ error: 'workflow_not_found' });
     if (parsed.data.fromStepIndex >= workflow.steps.length) {
       return reply.code(400).send({ error: 'step_index_out_of_range' });
@@ -550,7 +559,7 @@ export function buildRunnerServer(
         runId: activeRunId,
         message:
           `Run ${activeRunId} is still in progress in that browser. Wait for ` +
-          'it to finish or cancel it before starting another.'
+          'it to finish or cancel it before starting another.',
       });
     }
 
@@ -560,18 +569,22 @@ export function buildRunnerServer(
       runId,
       workflowId,
       status: 'running',
-      startedAt: new Date().toISOString()
+      startedAt: new Date().toISOString(),
     });
 
     void (async () => {
       try {
         const events = executeWorkflow(workflow, {
           runId,
-          ...(parsed.data.authProfileId !== undefined && { authProfileId: parsed.data.authProfileId }),
-          ...(parsed.data.debugMode !== undefined && { debugMode: parsed.data.debugMode }),
+          ...(parsed.data.authProfileId !== undefined && {
+            authProfileId: parsed.data.authProfileId,
+          }),
+          ...(parsed.data.debugMode !== undefined && {
+            debugMode: parsed.data.debugMode,
+          }),
           fromStepIndex: parsed.data.fromStepIndex,
           signal: entry.abort.signal,
-          launcher
+          launcher,
         });
         const executionConditions =
           typeof launcher.getExecutionConditions === 'function'
@@ -580,14 +593,16 @@ export function buildRunnerServer(
                 headless: false,
                 slowMo: 0,
                 contextIsolation: 'isolated' as const,
-                browserEngine: 'chromium'
+                browserEngine: 'chromium',
               };
         const graph = await buildRunGraph(workflow, events, {
           workflowVersionId: latest.id,
-          ...(parsed.data.authProfileId !== undefined && { authProfileId: parsed.data.authProfileId }),
+          ...(parsed.data.authProfileId !== undefined && {
+            authProfileId: parsed.data.authProfileId,
+          }),
           metadata: {
-            ...executionConditions
-          }
+            ...executionConditions,
+          },
         });
         repository.saveRunGraph(graph);
         registry.setStatus(runId, graph.run.status);
@@ -600,7 +615,7 @@ export function buildRunnerServer(
           startedAt: graph.run.startedAt,
           finishedAt: graph.run.finishedAt,
           errorCode: graph.run.errorCode,
-          errorMessage: graph.run.errorMessage
+          errorMessage: graph.run.errorMessage,
         };
       } catch (err) {
         logger.error({ err, runId }, 'run-from execution crashed');
@@ -611,7 +626,11 @@ export function buildRunnerServer(
       }
     })();
 
-    return reply.send({ runId, status: 'running' as const, fromStepIndex: parsed.data.fromStepIndex });
+    return reply.send({
+      runId,
+      status: 'running' as const,
+      fromStepIndex: parsed.data.fromStepIndex,
+    });
   });
 
   // ---- Diagnostics export ----
@@ -629,12 +648,12 @@ export function buildRunnerServer(
         nodeVersion: process.version,
         platform: process.platform,
         arch: process.arch,
-        runnerVersion: RUNNER_VERSION
+        runnerVersion: RUNNER_VERSION,
       },
       ...(workflow ? { workflow } : {}),
       run: graph.run,
       steps: graph.steps,
-      artifacts: graph.artifacts
+      artifacts: graph.artifacts,
     });
 
     return bundle;
@@ -659,7 +678,7 @@ export function buildRunnerServer(
       notes: parsed.data.notes,
       createdAt: now,
       updatedAt: now,
-      metadata: {}
+      metadata: {},
     });
     return { profile };
   });
@@ -679,7 +698,7 @@ export function buildRunnerServer(
           }
         }
         return { ...p, status };
-      })
+      }),
     };
   });
 
@@ -700,14 +719,12 @@ export function buildRunnerServer(
     return {
       authProfileId: id,
       status: 'ready' as const,
-      message: 'Interactive login session not yet implemented.'
+      message: 'Interactive login session not yet implemented.',
     };
   });
 
   app.post('/auth-profiles/:id/validate', async (request, reply) => {
-    const parsed = ValidateAuthProfileRequestSchema.safeParse(
-      request.body ?? {}
-    );
+    const parsed = ValidateAuthProfileRequestSchema.safeParse(request.body ?? {});
     if (!parsed.success) {
       return reply.code(400).send({ error: parsed.error.flatten() });
     }
@@ -746,7 +763,7 @@ export function buildRunnerServer(
       missedRunPolicy: parsed.data.missedRunPolicy,
       authProfileId: parsed.data.authProfileId,
       createdAt: now,
-      updatedAt: now
+      updatedAt: now,
     };
     repository.upsertSchedule(schedule);
     return { schedule };
@@ -755,9 +772,7 @@ export function buildRunnerServer(
   app.get('/schedules', async (request) => {
     const { workflowId } = (request.query ?? {}) as { workflowId?: string };
     const all = repository.listSchedules();
-    const schedules = workflowId
-      ? all.filter((s) => s.workflowId === workflowId)
-      : all;
+    const schedules = workflowId ? all.filter((s) => s.workflowId === workflowId) : all;
     return { schedules };
   });
 
@@ -776,10 +791,14 @@ export function buildRunnerServer(
       ...(parsed.data.timezone !== undefined && { timezone: parsed.data.timezone }),
       ...(parsed.data.hour !== undefined && { hour: parsed.data.hour }),
       ...(parsed.data.minute !== undefined && { minute: parsed.data.minute }),
-      ...(parsed.data.missedRunPolicy !== undefined && { missedRunPolicy: parsed.data.missedRunPolicy }),
-      ...(parsed.data.authProfileId !== undefined && { authProfileId: parsed.data.authProfileId ?? undefined }),
+      ...(parsed.data.missedRunPolicy !== undefined && {
+        missedRunPolicy: parsed.data.missedRunPolicy,
+      }),
+      ...(parsed.data.authProfileId !== undefined && {
+        authProfileId: parsed.data.authProfileId ?? undefined,
+      }),
       ...(parsed.data.enabled !== undefined && { enabled: parsed.data.enabled }),
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
     };
     repository.upsertSchedule(updated);
     return { schedule: updated };
@@ -796,7 +815,7 @@ export function buildRunnerServer(
     logger.info(
       {
         dataDir: runtimePaths.baseDir,
-        port: env.RUNNER_PORT
+        port: env.RUNNER_PORT,
       },
       'Runner scaffold ready.'
     );

@@ -4,18 +4,17 @@ import { SampleWorkflow, createWorkflowVersion } from '@waypoint/shared-types';
 
 import {
   INITIAL_SCHEMA_SQL,
+  applyMigrations,
   createDevelopmentSeedBundle,
   openWaypointDatabase,
-  seedDevelopmentData
+  seedDevelopmentData,
 } from './index.js';
 
 describe('SQLite migrations', () => {
   it('creates the expected core tables', () => {
     const database = openWaypointDatabase(':memory:');
     const tables = database.db
-      .prepare(
-        "SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name ASC"
-      )
+      .prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name ASC")
       .all()
       .map((row) => String((row as { name: string }).name));
 
@@ -30,7 +29,7 @@ describe('SQLite migrations', () => {
         'schedules',
         'settings',
         'workflow_versions',
-        'workflows'
+        'workflows',
       ])
     );
 
@@ -44,7 +43,7 @@ describe('WaypointRepository', () => {
     const workflowVersion = createWorkflowVersion(SampleWorkflow, {
       id: 'wfv_morning_setup_v1',
       createdAt: '2026-03-09T12:00:00.000Z',
-      createdBy: 'system'
+      createdBy: 'system',
     });
 
     database.repository.saveWorkflowVersion(workflowVersion);
@@ -94,9 +93,9 @@ describe('WaypointRepository', () => {
             ...step,
             resolvedLocator: {
               kind: 'testId' as const,
-              testId: 'submit-login'
+              testId: 'submit-login',
             },
-            usedFallback: true
+            usedFallback: true,
           }
         : { ...step, usedFallback: false }
     );
@@ -109,7 +108,7 @@ describe('WaypointRepository', () => {
     expect(first?.usedFallback).toBe(true);
     expect(first?.resolvedLocator).toEqual({
       kind: 'testId',
-      testId: 'submit-login'
+      testId: 'submit-login',
     });
     // false must survive as false, not collapse to undefined via 0/NULL confusion.
     if (second) expect(second.usedFallback).toBe(false);
@@ -131,13 +130,13 @@ describe('WaypointRepository', () => {
             ...step,
             truthClassification: 'true_positive' as const,
             resolvedTruthId: 'truth-btn-submit',
-            expectedTruthId: 'truth-btn-submit'
+            expectedTruthId: 'truth-btn-submit',
           }
         : {
             ...step,
             truthClassification: 'false_positive' as const,
             resolvedTruthId: 'truth-btn-cancel',
-            expectedTruthId: 'truth-btn-save'
+            expectedTruthId: 'truth-btn-save',
           }
     );
 
@@ -147,14 +146,14 @@ describe('WaypointRepository', () => {
         headless: true,
         slowMo: 50,
         contextIsolation: 'isolated',
-        browserEngine: 'chromium'
-      }
+        browserEngine: 'chromium',
+      },
     };
 
     database.repository.saveRunGraph({
       ...seedBundle.runGraph,
       run: runWithMetadata,
-      steps
+      steps,
     });
 
     const runGraph = database.repository.getRunGraph(runWithMetadata.id);
@@ -165,7 +164,7 @@ describe('WaypointRepository', () => {
       headless: true,
       slowMo: 50,
       contextIsolation: 'isolated',
-      browserEngine: 'chromium'
+      browserEngine: 'chromium',
     });
 
     // Verify truth classification and IDs on steps
@@ -216,4 +215,109 @@ describe('seedDevelopmentData', () => {
 
     database.close();
   });
+});
+
+it('applies migration 005 and round-trips all seven healing telemetry columns', () => {
+  const database = openWaypointDatabase(':memory:');
+  const columns = database.db
+    .prepare('PRAGMA table_info(run_steps)')
+    .all()
+    .map((row) => (row as { name: string }).name);
+  expect(columns).toEqual(
+    expect.arrayContaining([
+      'healing_attempted',
+      'healing_outcome',
+      'healed_score',
+      'ambiguity_margin',
+      'regenerated_locator',
+      'top_candidates',
+      'healing_latency_ms',
+    ])
+  );
+  expect(
+    (
+      database.db.prepare('SELECT name FROM migrations WHERE id=5').get() as {
+        name: string;
+      }
+    )?.name
+  ).toBe('005_self_healing_telemetry');
+  const seed = createDevelopmentSeedBundle();
+  database.repository.upsertAuthProfile(seed.authProfile);
+  database.repository.saveWorkflowVersion(seed.workflowVersion);
+  database.repository.upsertSchedule(seed.schedule);
+  const telemetry = {
+    healingAttempted: true,
+    healingOutcome: 'autonomous_repair' as const,
+    healedScore: 0.91,
+    ambiguityMargin: 0.22,
+    regeneratedLocator: {
+      kind: 'css' as const,
+      selector: '[data-waypoint-healed="test"]',
+    },
+    topCandidates: [
+      {
+        index: 0,
+        score: 0.91,
+        tagName: 'button',
+        accessibleName: 'Continue',
+        features: {
+          semantic: 1,
+          text: 1,
+          attributes: 0.8,
+          structural: 1,
+          position: 0.5,
+        },
+      },
+    ],
+    healingLatencyMs: 3.125,
+  };
+  const graph = {
+    ...seed.runGraph,
+    steps: seed.runGraph.steps.map((step) => ({ ...step, ...telemetry })),
+  };
+  database.repository.saveRunGraph(graph);
+  expect(database.repository.getRunGraph(graph.run.id)?.steps[0]).toMatchObject(
+    telemetry
+  );
+  const unchanged = database.db
+    .prepare(
+      'SELECT healing_attempted,healed_score,healing_latency_ms FROM run_steps LIMIT 1'
+    )
+    .get();
+  expect(unchanged).toMatchObject({
+    healing_attempted: 1,
+    healed_score: 0.91,
+    healing_latency_ms: 3.125,
+  });
+  database.close();
+});
+
+it('upgrades existing v4 step history without data loss and reapplies idempotently', () => {
+  const database = openWaypointDatabase(':memory:');
+  const seed = createDevelopmentSeedBundle();
+  database.repository.upsertAuthProfile(seed.authProfile);
+  database.repository.saveWorkflowVersion(seed.workflowVersion);
+  database.repository.upsertSchedule(seed.schedule);
+  database.repository.saveRunGraph(seed.runGraph);
+  for (const column of [
+    'healing_attempted',
+    'healing_outcome',
+    'healed_score',
+    'ambiguity_margin',
+    'regenerated_locator',
+    'top_candidates',
+    'healing_latency_ms',
+  ])
+    database.db.exec(`ALTER TABLE run_steps DROP COLUMN ${column}`);
+  database.db.exec('DELETE FROM migrations WHERE id=5');
+  expect(applyMigrations(database.db).map((m) => m.name)).toEqual([
+    '005_self_healing_telemetry',
+  ]);
+  expect(applyMigrations(database.db)).toEqual([]);
+  const step = database.repository.getRunGraph(seed.runGraph.run.id)?.steps[0];
+  expect(step?.stepId).toBe(seed.runGraph.steps[0]?.stepId);
+  expect(step?.healingAttempted).toBe(false);
+  expect(step?.healingOutcome).toBeNull();
+  expect(step?.healedScore).toBeNull();
+  database.close();
 });

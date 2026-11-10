@@ -8,11 +8,13 @@ import {
   getLocatorFamily,
   type DebugMetadata,
   type Locator,
+  ElementSnapshotSchema,
+  type ElementSnapshot,
   type RawRecordedEvent,
   type RecordingSessionInput,
   type Target,
   type Workflow,
-  type WorkflowStep
+  type WorkflowStep,
 } from '@waypoint/shared-types';
 
 export interface CompileWorkflowOptions {
@@ -32,7 +34,7 @@ const LOCATOR_SCORE: Record<Locator['kind'], number> = {
   text: 70,
   css: 50,
   xpath: 20,
-  coordinates: 10
+  coordinates: 10,
 };
 
 interface RankedLocators {
@@ -44,9 +46,7 @@ interface RankedLocators {
 
 function rankTargetLocators(target: Target): RankedLocators {
   const all = [target.primaryLocator, ...target.fallbackLocators];
-  const sorted = [...all].sort(
-    (a, b) => LOCATOR_SCORE[b.kind] - LOCATOR_SCORE[a.kind]
-  );
+  const sorted = [...all].sort((a, b) => LOCATOR_SCORE[b.kind] - LOCATOR_SCORE[a.kind]);
   const primary = sorted[0]!;
   const fallbacks = sorted.slice(1);
   const hasSemantic = sorted.some((l) => {
@@ -82,7 +82,7 @@ function rankTargetLocators(target: Target): RankedLocators {
     primary,
     fallbacks,
     confidence,
-    lowConfidence: confidence < 0.6
+    lowConfidence: confidence < 0.6,
   };
 }
 
@@ -127,15 +127,9 @@ function mergeEvents(events: RawRecordedEvent[]): RawRecordedEvent[] {
         atMs: event.atMs,
         debug: {
           ...last.debug,
-          sourceEventIds: [
-            ...(last.debug?.sourceEventIds ?? []),
-            event.eventId
-          ],
-          notes: [
-            ...(last.debug?.notes ?? []),
-            'merged-consecutive-input'
-          ]
-        }
+          sourceEventIds: [...(last.debug?.sourceEventIds ?? []), event.eventId],
+          notes: [...(last.debug?.notes ?? []), 'merged-consecutive-input'],
+        },
       };
       continue;
     }
@@ -153,15 +147,9 @@ function mergeEvents(events: RawRecordedEvent[]): RawRecordedEvent[] {
         ...last,
         debug: {
           ...last.debug,
-          sourceEventIds: [
-            ...(last.debug?.sourceEventIds ?? []),
-            event.eventId
-          ],
-          notes: [
-            ...(last.debug?.notes ?? []),
-            'merged-accidental-double-click'
-          ]
-        }
+          sourceEventIds: [...(last.debug?.sourceEventIds ?? []), event.eventId],
+          notes: [...(last.debug?.notes ?? []), 'merged-accidental-double-click'],
+        },
       };
       continue;
     }
@@ -180,12 +168,7 @@ function promoteEvents(events: RawRecordedEvent[]): RawRecordedEvent[] {
     const event = events[i]!;
     const next = events[i + 1];
 
-    if (
-      event.type === 'click' &&
-      next &&
-      next.type === 'navigate' &&
-      event.element
-    ) {
+    if (event.type === 'click' && next && next.type === 'navigate' && event.element) {
       const tag = event.element.tagName?.toLowerCase();
       const href = event.element.attributes?.href;
       if (tag === 'a' && href && href === next.url) {
@@ -193,15 +176,9 @@ function promoteEvents(events: RawRecordedEvent[]): RawRecordedEvent[] {
           ...next,
           debug: {
             ...next.debug,
-            sourceEventIds: [
-              ...(next.debug?.sourceEventIds ?? []),
-              event.eventId
-            ],
-            notes: [
-              ...(next.debug?.notes ?? []),
-              'promoted-from-link-click'
-            ]
-          }
+            sourceEventIds: [...(next.debug?.sourceEventIds ?? []), event.eventId],
+            notes: [...(next.debug?.notes ?? []), 'promoted-from-link-click'],
+          },
         });
         i++;
         continue;
@@ -214,10 +191,7 @@ function promoteEvents(events: RawRecordedEvent[]): RawRecordedEvent[] {
   return out;
 }
 
-function buildDebug(
-  event: RawRecordedEvent,
-  ranked?: RankedLocators
-): DebugMetadata {
+function buildDebug(event: RawRecordedEvent, ranked?: RankedLocators): DebugMetadata {
   const base = createDefaultDebugMetadata();
   return {
     ...base,
@@ -227,14 +201,40 @@ function buildDebug(
     rawEventType: event.type,
     sourceUrl: event.pageUrl,
     confidence: ranked?.confidence,
-    extra: {}
+    extra: {},
+  };
+}
+
+function eventSnapshot(event: RawRecordedEvent): ElementSnapshot | undefined {
+  const targetSnapshot = 'target' in event ? event.target?.snapshot : undefined;
+  const candidate = targetSnapshot ?? ('element' in event ? event.element : undefined);
+  const parsed = ElementSnapshotSchema.safeParse(candidate);
+  if (!parsed.success) return undefined;
+  const snapshot = parsed.data;
+  const expectedTruthId =
+    snapshot.expectedTruthId ?? snapshot.attributes['data-truth-id'];
+  return {
+    ...snapshot,
+    attributes: Object.fromEntries(
+      Object.entries(snapshot.attributes).filter(([key]) =>
+        ['type', 'name', 'href', 'class'].includes(key)
+      )
+    ),
+    ...(expectedTruthId ? { expectedTruthId } : {}),
   };
 }
 
 function extractTruthId(event: RawRecordedEvent): string | undefined {
-  if ('target' in event && event.target && 'dataTruthId' in event.target && typeof event.target.dataTruthId === 'string') {
+  if (
+    'target' in event &&
+    event.target &&
+    'dataTruthId' in event.target &&
+    typeof event.target.dataTruthId === 'string'
+  ) {
     return event.target.dataTruthId;
   }
+  if ('element' in event && event.element?.expectedTruthId)
+    return event.element.expectedTruthId;
   if ('element' in event && event.element?.attributes?.['data-truth-id']) {
     return event.element.attributes['data-truth-id'];
   }
@@ -258,8 +258,8 @@ function compileEventToSteps(
           retryPolicy: DEFAULT_RETRY_POLICY,
           debug: buildDebug(event),
           tabAlias: event.tabId,
-          initialUrl: event.initialUrl
-        }
+          initialUrl: event.initialUrl,
+        },
       ];
 
     case 'tabClosed':
@@ -271,8 +271,8 @@ function compileEventToSteps(
           timeoutMs: DEFAULT_STEP_TIMEOUT_MS,
           retryPolicy: DEFAULT_RETRY_POLICY,
           debug: buildDebug(event),
-          tabAlias: event.tabId
-        }
+          tabAlias: event.tabId,
+        },
       ];
 
     case 'navigate':
@@ -286,8 +286,8 @@ function compileEventToSteps(
           timeoutMs: DEFAULT_STEP_TIMEOUT_MS,
           retryPolicy: DEFAULT_RETRY_POLICY,
           debug: buildDebug(event),
-          tabAlias: event.tabId
-        }
+          tabAlias: event.tabId,
+        },
       ];
 
     case 'click': {
@@ -300,14 +300,15 @@ function compileEventToSteps(
           primaryLocator: ranked.primary,
           fallbackLocators: ranked.fallbacks,
           framePath: event.target.framePath,
+          ...(eventSnapshot(event) ? { snapshot: eventSnapshot(event)! } : {}),
           ...(dataTruthId ? { dataTruthId } : {}),
           timeoutMs: DEFAULT_STEP_TIMEOUT_MS,
           retryPolicy: DEFAULT_RETRY_POLICY,
           debug: buildDebug(event, ranked),
           button: event.button,
           clickCount: 1,
-          tabAlias: event.tabId
-        }
+          tabAlias: event.tabId,
+        },
       ];
     }
 
@@ -321,6 +322,7 @@ function compileEventToSteps(
           primaryLocator: ranked.primary,
           fallbackLocators: ranked.fallbacks,
           framePath: event.target.framePath,
+          ...(eventSnapshot(event) ? { snapshot: eventSnapshot(event)! } : {}),
           ...(dataTruthId ? { dataTruthId } : {}),
           timeoutMs: DEFAULT_STEP_TIMEOUT_MS,
           retryPolicy: DEFAULT_RETRY_POLICY,
@@ -328,8 +330,8 @@ function compileEventToSteps(
           value: event.value,
           clearBefore: true,
           sensitive: false,
-          tabAlias: event.tabId
-        }
+          tabAlias: event.tabId,
+        },
       ];
     }
 
@@ -343,13 +345,14 @@ function compileEventToSteps(
           primaryLocator: ranked.primary,
           fallbackLocators: ranked.fallbacks,
           framePath: event.target.framePath,
+          ...(eventSnapshot(event) ? { snapshot: eventSnapshot(event)! } : {}),
           ...(dataTruthId ? { dataTruthId } : {}),
           timeoutMs: DEFAULT_STEP_TIMEOUT_MS,
           retryPolicy: DEFAULT_RETRY_POLICY,
           debug: buildDebug(event, ranked),
           option: event.option,
-          tabAlias: event.tabId
-        }
+          tabAlias: event.tabId,
+        },
       ];
     }
 
@@ -363,17 +366,18 @@ function compileEventToSteps(
           primaryLocator: ranked.primary,
           fallbackLocators: ranked.fallbacks,
           framePath: event.target.framePath,
+          ...(eventSnapshot(event) ? { snapshot: eventSnapshot(event)! } : {}),
           ...(dataTruthId ? { dataTruthId } : {}),
           timeoutMs: DEFAULT_STEP_TIMEOUT_MS,
           retryPolicy: DEFAULT_RETRY_POLICY,
           debug: {
             ...buildDebug(event, ranked),
-            notes: ['compiled-from-submit']
+            notes: ['compiled-from-submit'],
           },
           key: 'Enter',
           modifiers: [],
-          tabAlias: event.tabId
-        }
+          tabAlias: event.tabId,
+        },
       ];
     }
 
@@ -388,14 +392,15 @@ function compileEventToSteps(
           primaryLocator: ranked.primary,
           fallbackLocators: ranked.fallbacks,
           framePath: event.target.framePath,
+          ...(eventSnapshot(event) ? { snapshot: eventSnapshot(event)! } : {}),
           ...(dataTruthId ? { dataTruthId } : {}),
           timeoutMs: DEFAULT_STEP_TIMEOUT_MS,
           retryPolicy: DEFAULT_RETRY_POLICY,
           debug: buildDebug(event, ranked),
           key: event.key,
           modifiers: event.modifiers,
-          tabAlias: event.tabId
-        }
+          tabAlias: event.tabId,
+        },
       ];
     }
 
@@ -410,13 +415,14 @@ function compileEventToSteps(
           primaryLocator: ranked.primary,
           fallbackLocators: ranked.fallbacks,
           framePath: event.target.framePath,
+          ...(eventSnapshot(event) ? { snapshot: eventSnapshot(event)! } : {}),
           ...(dataTruthId ? { dataTruthId } : {}),
           timeoutMs: DEFAULT_STEP_TIMEOUT_MS,
           retryPolicy: DEFAULT_RETRY_POLICY,
           debug: buildDebug(event, ranked),
           condition: event.condition,
-          tabAlias: event.tabId
-        }
+          tabAlias: event.tabId,
+        },
       ];
     }
 
@@ -431,13 +437,14 @@ function compileEventToSteps(
           primaryLocator: ranked.primary,
           fallbackLocators: ranked.fallbacks,
           framePath: event.target.framePath,
+          ...(eventSnapshot(event) ? { snapshot: eventSnapshot(event)! } : {}),
           ...(dataTruthId ? { dataTruthId } : {}),
           timeoutMs: DEFAULT_STEP_TIMEOUT_MS,
           retryPolicy: DEFAULT_RETRY_POLICY,
           debug: buildDebug(event, ranked),
           assertion: event.assertion,
-          tabAlias: event.tabId
-        }
+          tabAlias: event.tabId,
+        },
       ];
     }
 
@@ -464,7 +471,8 @@ function getStepTarget(step: WorkflowStep): Target | null {
       primaryLocator: step.primaryLocator,
       fallbackLocators: step.fallbackLocators ?? [],
       framePath: step.framePath,
-      ...(step.dataTruthId ? { dataTruthId: step.dataTruthId } : {})
+      ...(step.snapshot ? { snapshot: step.snapshot } : {}),
+      ...(step.dataTruthId ? { dataTruthId: step.dataTruthId } : {}),
     };
   }
   return null;
@@ -497,6 +505,7 @@ function insertPostconditions(
           primaryLocator: ranked.primary,
           fallbackLocators: ranked.fallbacks,
           framePath: target.framePath,
+          ...(target.snapshot ? { snapshot: target.snapshot } : {}),
           ...(target.dataTruthId ? { dataTruthId: target.dataTruthId } : {}),
           timeoutMs: DEFAULT_STEP_TIMEOUT_MS,
           retryPolicy: DEFAULT_RETRY_POLICY,
@@ -504,15 +513,15 @@ function insertPostconditions(
             ...createDefaultDebugMetadata(),
             sourceEventIds: [
               ...(prev.debug?.sourceEventIds ?? []),
-              ...(step.debug?.sourceEventIds ?? [])
+              ...(step.debug?.sourceEventIds ?? []),
             ],
             notes: ['inferred-postcondition'],
             tags: ranked.lowConfidence ? ['low-confidence'] : [],
             confidence: ranked.confidence,
-            extra: {}
+            extra: {},
           },
           condition: 'visible',
-          tabAlias: step.tabAlias
+          tabAlias: step.tabAlias,
         };
         out.push(waitForStep);
       }
@@ -561,7 +570,7 @@ export function compileRecording(
     updatedAt: createdAt,
     tags: [],
     metadata: {
-      recordingId: recording.recordingId
+      recordingId: recording.recordingId,
     },
     steps:
       withPostconditions.length > 0
@@ -580,10 +589,10 @@ export function compileRecording(
               retryPolicy: DEFAULT_RETRY_POLICY,
               debug: {
                 ...createDefaultDebugMetadata(),
-                notes: ['empty-recording-noop']
+                notes: ['empty-recording-noop'],
               },
-              assertion: { kind: 'visible' }
-            }
-          ] as WorkflowStep[])
+              assertion: { kind: 'visible' },
+            },
+          ] as WorkflowStep[]),
   });
 }

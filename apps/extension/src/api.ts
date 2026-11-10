@@ -8,7 +8,7 @@ import type {
   Schedule,
   Workflow,
   WorkflowRecord,
-  WorkflowStep
+  WorkflowStep,
 } from '@waypoint/shared-types';
 
 // ---- Service Worker message transport ----
@@ -28,9 +28,7 @@ function sendSWMessage<T = unknown>(message: unknown): Promise<SWResponse<T>> {
         reject(new Error(err.message));
         return;
       }
-      resolve(
-        response ?? { ok: false, message: 'No response from service worker.' }
-      );
+      resolve(response ?? { ok: false, message: 'No response from service worker.' });
     });
   });
 }
@@ -43,11 +41,10 @@ const RUNNER_BASE =
       ?.VITE_RUNNER_BASE_URL) ||
   'http://127.0.0.1:3100';
 
-async function runnerFetch<T>(
-  path: string,
-  init?: RequestInit
-): Promise<T> {
-  const headers: Record<string, string> = { ...init?.headers as Record<string, string> };
+async function runnerFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const headers: Record<string, string> = {
+    ...(init?.headers as Record<string, string>),
+  };
   // Only set JSON content-type when there's a body to send.
   if (init?.body) {
     headers['Content-Type'] = 'application/json';
@@ -67,12 +64,15 @@ export const api = {
   ping: () => sendSWMessage({ type: 'waypoint.ping' }),
 
   captureAttachedTarget: (windowId: number) =>
-    sendSWMessage<AttachedTarget>({ type: 'waypoint.playback.captureTarget', windowId }),
+    sendSWMessage<AttachedTarget>({
+      type: 'waypoint.playback.captureTarget',
+      windowId,
+    }),
 
   startRecording: (name: string) =>
     sendSWMessage<{ recordingId: string }>({
       type: 'waypoint.recording.start',
-      name
+      name,
     }),
 
   stopRecording: () =>
@@ -96,18 +96,17 @@ export const api = {
     ),
 
   getRecordingStatus: () =>
-    sendSWMessage<{ recordingId?: string; active: boolean; eventCount: number }>(
-      { type: 'waypoint.recording.status' }
-    ),
+    sendSWMessage<{ recordingId?: string; active: boolean; eventCount: number }>({
+      type: 'waypoint.recording.status',
+    }),
 
   // Runner — Workflows
-  listWorkflows: () =>
-    runnerFetch<{ workflows: WorkflowRecord[] }>('/workflows'),
+  listWorkflows: () => runnerFetch<{ workflows: WorkflowRecord[] }>('/workflows'),
 
   updateWorkflow: (id: string, body: Record<string, unknown>) =>
     runnerFetch<WorkflowRecord>(`/workflows/${id}`, {
       method: 'PUT',
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
     }),
 
   deleteWorkflow: (id: string) =>
@@ -127,28 +126,27 @@ export const api = {
       debugMode?: boolean;
       /** `isolated` (default) starts clean; `attached` drives your open Chrome. */
       engine?: 'isolated' | 'attached';
+      healingEnabled?: boolean;
       attachedTarget?: AttachedTarget;
       reloadBeforeRun?: boolean;
     }
   ) =>
-    runnerFetch<{ runId: string; status: string }>(
-      `/workflows/${workflowId}/run`,
-      { method: 'POST', body: JSON.stringify(opts ?? {}) }
-    ),
+    runnerFetch<{ runId: string; status: string }>(`/workflows/${workflowId}/run`, {
+      method: 'POST',
+      body: JSON.stringify(opts ?? {}),
+    }),
 
   cancelRun: (runId: string) =>
-    runnerFetch<{ runId: string; status: string }>(
-      `/runs/${runId}/cancel`,
-      { method: 'POST' }
-    ),
+    runnerFetch<{ runId: string; status: string }>(`/runs/${runId}/cancel`, {
+      method: 'POST',
+    }),
 
   listRuns: (workflowId?: string) =>
     runnerFetch<{ runs: RunSummary[] }>(
       workflowId ? `/runs?workflowId=${workflowId}` : '/runs'
     ),
 
-  getRunDetails: (runId: string) =>
-    runnerFetch<RunGraph>(`/runs/${runId}`),
+  getRunDetails: (runId: string) => runnerFetch<RunGraph>(`/runs/${runId}`),
 
   // Runner — Auth Profiles
   listAuthProfiles: () =>
@@ -159,7 +157,7 @@ export const api = {
   createAuthProfile: (body: { name: string; browserEngine?: string; notes?: string }) =>
     runnerFetch<{ profile: AuthProfile }>('/auth-profiles', {
       method: 'POST',
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
     }),
 
   deleteAuthProfile: (id: string) =>
@@ -172,10 +170,10 @@ export const api = {
     ),
 
   validateAuthProfile: (id: string) =>
-    runnerFetch<{ valid: boolean; reason?: string }>(
-      `/auth-profiles/${id}/validate`,
-      { method: 'POST', body: JSON.stringify({}) }
-    ),
+    runnerFetch<{ valid: boolean; reason?: string }>(`/auth-profiles/${id}/validate`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    }),
 
   // Runner — Schedules
   listSchedules: (workflowId?: string) =>
@@ -186,13 +184,13 @@ export const api = {
   createSchedule: (body: Record<string, unknown>) =>
     runnerFetch<{ schedule: Schedule }>('/schedules', {
       method: 'POST',
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
     }),
 
   updateSchedule: (id: string, body: Record<string, unknown>) =>
     runnerFetch<{ schedule: Schedule }>(`/schedules/${id}`, {
       method: 'PUT',
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
     }),
 
   deleteSchedule: (id: string) =>
@@ -204,7 +202,13 @@ export const api = {
 
   updateWorkflowDefinition: (
     id: string,
-    body: { name?: string; description?: string; steps?: WorkflowStep[]; tags?: string[]; changeSummary?: string }
+    body: {
+      name?: string;
+      description?: string;
+      steps?: WorkflowStep[];
+      tags?: string[];
+      changeSummary?: string;
+    }
   ) =>
     runnerFetch<{ workflowId: string; workflowVersion: number; workflow: Workflow }>(
       `/workflows/${id}/definition`,
@@ -213,7 +217,15 @@ export const api = {
 
   spliceWorkflow: (
     workflowId: string,
-    body: { fromStepIndex: number; recording: { recordingId: string; name: string; startedAt: string; events: unknown[] } }
+    body: {
+      fromStepIndex: number;
+      recording: {
+        recordingId: string;
+        name: string;
+        startedAt: string;
+        events: unknown[];
+      };
+    }
   ) =>
     runnerFetch<{ workflowId: string; workflowVersion: number; stepsReplaced: number }>(
       `/workflows/${workflowId}/splice`,
@@ -222,16 +234,31 @@ export const api = {
 
   getWorkflowVersions: (id: string) =>
     runnerFetch<{
-      versions: Array<{ id: string; version: number; createdAt: string; changeSummary?: string; createdBy: string }>;
+      versions: Array<{
+        id: string;
+        version: number;
+        createdAt: string;
+        changeSummary?: string;
+        createdBy: string;
+      }>;
     }>(`/workflows/${id}/versions`),
 
   testStep: (workflowId: string, step: WorkflowStep, authProfileId?: string) =>
-    runnerFetch<{ ok: boolean; durationMs: number; error?: { code: string; message: string }; screenshotPath?: string }>(
-      `/workflows/${workflowId}/test-step`,
-      { method: 'POST', body: JSON.stringify({ step, ...(authProfileId ? { authProfileId } : {}) }) }
-    ),
+    runnerFetch<{
+      ok: boolean;
+      durationMs: number;
+      error?: { code: string; message: string };
+      screenshotPath?: string;
+    }>(`/workflows/${workflowId}/test-step`, {
+      method: 'POST',
+      body: JSON.stringify({ step, ...(authProfileId ? { authProfileId } : {}) }),
+    }),
 
-  runFromStep: (workflowId: string, fromStepIndex: number, opts?: { authProfileId?: string; debugMode?: boolean }) =>
+  runFromStep: (
+    workflowId: string,
+    fromStepIndex: number,
+    opts?: { authProfileId?: string; debugMode?: boolean }
+  ) =>
     runnerFetch<{ runId: string; status: string; fromStepIndex: number }>(
       `/workflows/${workflowId}/run-from`,
       { method: 'POST', body: JSON.stringify({ fromStepIndex, ...opts }) }
@@ -239,7 +266,7 @@ export const api = {
 
   // Runner — Diagnostics
   getRunDiagnostics: (runId: string) =>
-    runnerFetch<DiagnosticsBundle>(`/runs/${runId}/diagnostics`)
+    runnerFetch<DiagnosticsBundle>(`/runs/${runId}/diagnostics`),
 } as const;
 
 export type Api = typeof api;

@@ -18,6 +18,7 @@
     "@waypoint/logger": "workspace:*",
     "@waypoint/shared-types": "workspace:*",
     "dotenv": "^16.4.7",
+    "esbuild": "^0.28.2",
     "fastify": "^4.28.1",
     "parse5": "^8.0.1",
     "playwright": "^1.52.0",

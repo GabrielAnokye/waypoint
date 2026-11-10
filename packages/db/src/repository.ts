@@ -21,10 +21,14 @@ import {
   type TruthClassification,
   type Workflow,
   type WorkflowRecord,
-  type WorkflowVersion
+  type WorkflowVersion,
 } from '@waypoint/shared-types';
 
-import { CREATE_MIGRATIONS_TABLE_SQL, MIGRATIONS, type Migration } from './migrations.js';
+import {
+  CREATE_MIGRATIONS_TABLE_SQL,
+  MIGRATIONS,
+  type Migration,
+} from './migrations.js';
 
 export interface RunGraph {
   run: Run;
@@ -100,13 +104,16 @@ function mapWorkflowRow(row: SqliteRow): WorkflowRecord {
     name: row.name,
     description: asOptionalString(row.description),
     enabled: asBoolean(row.enabled),
-    trigger: parseJsonColumn(WorkflowRecordSchema.shape.trigger, row.trigger_json as string),
+    trigger: parseJsonColumn(
+      WorkflowRecordSchema.shape.trigger,
+      row.trigger_json as string
+    ),
     defaultAuthProfileId: asOptionalString(row.default_auth_profile_id),
     latestVersion: asNumber(row.latest_version),
     schemaVersion: asNumber(row.schema_version),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
-    tags: parseJsonColumn(WorkflowRecordSchema.shape.tags, row.tags_json as string)
+    tags: parseJsonColumn(WorkflowRecordSchema.shape.tags, row.tags_json as string),
   });
 }
 
@@ -120,7 +127,7 @@ function mapWorkflowVersionRow(row: SqliteRow): WorkflowVersion {
     createdAt: row.created_at,
     changeSummary: asOptionalString(row.change_summary),
     createdBy: row.created_by,
-    sourceRecordingId: asOptionalString(row.source_recording_id)
+    sourceRecordingId: asOptionalString(row.source_recording_id),
   });
 }
 
@@ -140,7 +147,7 @@ function mapRunRow(row: SqliteRow): Run {
     errorMessage: asOptionalString(row.error_message),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
-    metadata: parseJsonColumn(RunSchema.shape.metadata, row.metadata_json as string)
+    metadata: parseJsonColumn(RunSchema.shape.metadata, row.metadata_json as string),
   });
 }
 
@@ -167,7 +174,17 @@ function mapRunStepRow(row: SqliteRow): RunStepResult {
       row.used_fallback === null || row.used_fallback === undefined
         ? undefined
         : asNumber(row.used_fallback) === 1,
-    truthClassification: asOptionalString(row.truth_classification) as TruthClassification | undefined,
+    healingAttempted: row.healing_attempted === 1,
+    healingOutcome: row.healing_outcome ?? null,
+    healedScore: row.healed_score ?? null,
+    ambiguityMargin: row.ambiguity_margin ?? null,
+    regeneratedLocator: row.regenerated_locator
+      ? JSON.parse(String(row.regenerated_locator))
+      : null,
+    topCandidates: row.top_candidates ? JSON.parse(String(row.top_candidates)) : [],
+    healingLatencyMs: row.healing_latency_ms ?? null,
+    truthClassification: asOptionalString(row.truth_classification) as
+      TruthClassification | undefined,
     resolvedTruthId: asOptionalString(row.resolved_truth_id),
     expectedTruthId: asOptionalString(row.expected_truth_id),
     errorCode: asOptionalString(row.error_code),
@@ -176,7 +193,7 @@ function mapRunStepRow(row: SqliteRow): RunStepResult {
       RunStepResultSchema.shape.artifactIds,
       row.artifact_ids_json as string
     ),
-    debug: parseJsonColumn(RunStepResultSchema.shape.debug, row.debug_json as string)
+    debug: parseJsonColumn(RunStepResultSchema.shape.debug, row.debug_json as string),
   });
 }
 
@@ -191,7 +208,10 @@ function mapArtifactRow(row: SqliteRow): Artifact {
     sizeBytes: asNumber(row.size_bytes),
     sha256: asOptionalString(row.sha256),
     createdAt: row.created_at,
-    metadata: parseJsonColumn(ArtifactSchema.shape.metadata, row.metadata_json as string)
+    metadata: parseJsonColumn(
+      ArtifactSchema.shape.metadata,
+      row.metadata_json as string
+    ),
   });
 }
 
@@ -210,7 +230,7 @@ function mapScheduleRow(row: SqliteRow): Schedule {
     lastRunAt: asOptionalString(row.last_run_at),
     lastRunStatus: asOptionalString(row.last_run_status),
     createdAt: row.created_at,
-    updatedAt: row.updated_at
+    updatedAt: row.updated_at,
   });
 }
 
@@ -225,7 +245,10 @@ function mapAuthProfileRow(row: SqliteRow): AuthProfile {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     lastValidatedAt: asOptionalString(row.last_validated_at),
-    metadata: parseJsonColumn(AuthProfileSchema.shape.metadata, row.metadata_json as string)
+    metadata: parseJsonColumn(
+      AuthProfileSchema.shape.metadata,
+      row.metadata_json as string
+    ),
   });
 }
 
@@ -233,7 +256,7 @@ function mapSettingRow(row: SqliteRow): Setting {
   return SettingSchema.parse({
     key: row.key,
     value: parseJsonColumn(SettingSchema.shape.value, row.value_json as string),
-    updatedAt: row.updated_at
+    updatedAt: row.updated_at,
   });
 }
 
@@ -267,7 +290,7 @@ export function applyMigrations(database: DatabaseSync): Migration[] {
       ).run({
         id: migration.id,
         name: migration.name,
-        appliedAt: currentTimestamp()
+        appliedAt: currentTimestamp(),
       });
       database.exec('COMMIT;');
       applied.push(migration);
@@ -377,7 +400,7 @@ export class WaypointRepository {
         schemaVersion: workflow.schemaVersion,
         createdAt: workflow.createdAt,
         updatedAt: workflow.updatedAt,
-        tagsJson: serializeJson(workflow.tags)
+        tagsJson: serializeJson(workflow.tags),
       });
 
       prepareNamed(
@@ -420,7 +443,7 @@ export class WaypointRepository {
         createdAt: version.createdAt,
         changeSummary: version.changeSummary ?? null,
         createdBy: version.createdBy,
-        sourceRecordingId: version.sourceRecordingId ?? null
+        sourceRecordingId: version.sourceRecordingId ?? null,
       });
     });
 
@@ -441,7 +464,7 @@ export class WaypointRepository {
       this.database,
       'SELECT * FROM workflows WHERE id = :workflowId'
     ).get({
-      workflowId
+      workflowId,
     });
 
     return row ? mapWorkflowRow(row as SqliteRow) : null;
@@ -472,7 +495,7 @@ export class WaypointRepository {
       `
     ).get({
       workflowId,
-      version
+      version,
     });
 
     return row ? mapWorkflowVersionRow(row as SqliteRow) : null;
@@ -488,7 +511,7 @@ export class WaypointRepository {
       LIMIT 1
       `
     ).get({
-      workflowId
+      workflowId,
     });
 
     return row
@@ -504,7 +527,7 @@ export class WaypointRepository {
       steps: runGraphInput.steps.map((step) => RunStepResultSchema.parse(step)),
       artifacts: runGraphInput.artifacts.map((artifact) =>
         ArtifactSchema.parse(artifact)
-      )
+      ),
     };
 
     this.transaction(() => {
@@ -575,14 +598,14 @@ export class WaypointRepository {
         errorMessage: runGraph.run.errorMessage ?? null,
         createdAt: runGraph.run.createdAt,
         updatedAt: runGraph.run.updatedAt,
-        metadataJson: serializeJson(runGraph.run.metadata)
+        metadataJson: serializeJson(runGraph.run.metadata),
       });
 
       prepareNamed(this.database, 'DELETE FROM artifacts WHERE run_id = :runId').run({
-        runId: runGraph.run.id
+        runId: runGraph.run.id,
       });
       prepareNamed(this.database, 'DELETE FROM run_steps WHERE run_id = :runId').run({
-        runId: runGraph.run.id
+        runId: runGraph.run.id,
       });
 
       const insertRunStep = prepareNamed(
@@ -600,6 +623,8 @@ export class WaypointRepository {
           duration_ms,
           resolved_locator_json,
           used_fallback,
+          healing_attempted, healing_outcome, healed_score, ambiguity_margin,
+          regenerated_locator, top_candidates, healing_latency_ms,
           truth_classification,
           resolved_truth_id,
           expected_truth_id,
@@ -619,6 +644,8 @@ export class WaypointRepository {
           :durationMs,
           :resolvedLocatorJson,
           :usedFallback,
+          :healingAttempted, :healingOutcome, :healedScore, :ambiguityMargin,
+          :regeneratedLocator, :topCandidates, :healingLatencyMs,
           :truthClassification,
           :resolvedTruthId,
           :expectedTruthId,
@@ -646,13 +673,22 @@ export class WaypointRepository {
             : null,
           usedFallback:
             step.usedFallback === undefined ? null : step.usedFallback ? 1 : 0,
+          healingAttempted: step.healingAttempted ? 1 : 0,
+          healingOutcome: step.healingOutcome ?? null,
+          healedScore: step.healedScore ?? null,
+          ambiguityMargin: step.ambiguityMargin ?? null,
+          regeneratedLocator: step.regeneratedLocator
+            ? serializeJson(step.regeneratedLocator)
+            : null,
+          topCandidates: serializeJson(step.topCandidates ?? []),
+          healingLatencyMs: step.healingLatencyMs ?? null,
           truthClassification: step.truthClassification ?? null,
           resolvedTruthId: step.resolvedTruthId ?? null,
           expectedTruthId: step.expectedTruthId ?? null,
           errorCode: step.errorCode ?? null,
           errorMessage: step.errorMessage ?? null,
           artifactIdsJson: serializeJson(step.artifactIds),
-          debugJson: serializeJson(step.debug)
+          debugJson: serializeJson(step.debug),
         });
       }
 
@@ -696,7 +732,7 @@ export class WaypointRepository {
           sizeBytes: artifact.sizeBytes,
           sha256: artifact.sha256 ?? null,
           createdAt: artifact.createdAt,
-          metadataJson: serializeJson(artifact.metadata)
+          metadataJson: serializeJson(artifact.metadata),
         });
       }
     });
@@ -730,7 +766,7 @@ export class WaypointRepository {
     return {
       run: mapRunRow(runRow as SqliteRow),
       steps,
-      artifacts
+      artifacts,
     };
   }
 
@@ -813,7 +849,7 @@ export class WaypointRepository {
         lastRunAt: schedule.lastRunAt ?? null,
         lastRunStatus: schedule.lastRunStatus ?? null,
         createdAt: schedule.createdAt,
-        updatedAt: schedule.updatedAt
+        updatedAt: schedule.updatedAt,
       });
     });
 
@@ -879,7 +915,7 @@ export class WaypointRepository {
         createdAt: profile.createdAt,
         updatedAt: profile.updatedAt,
         lastValidatedAt: profile.lastValidatedAt ?? null,
-        metadataJson: serializeJson(profile.metadata)
+        metadataJson: serializeJson(profile.metadata),
       });
     });
 
@@ -942,7 +978,13 @@ export class WaypointRepository {
 
   public updateWorkflow(
     workflowId: string,
-    updates: { name?: string | undefined; description?: string | undefined; enabled?: boolean | undefined; defaultAuthProfileId?: string | null | undefined; tags?: string[] | undefined }
+    updates: {
+      name?: string | undefined;
+      description?: string | undefined;
+      enabled?: boolean | undefined;
+      defaultAuthProfileId?: string | null | undefined;
+      tags?: string[] | undefined;
+    }
   ): WorkflowRecord | null {
     const existing = this.getWorkflow(workflowId);
     if (!existing) return null;
@@ -963,13 +1005,17 @@ export class WaypointRepository {
     ).run({
       workflowId,
       name: updates.name ?? existing.name,
-      description: updates.description !== undefined ? updates.description : (existing.description ?? null),
+      description:
+        updates.description !== undefined
+          ? updates.description
+          : (existing.description ?? null),
       enabled: (updates.enabled ?? existing.enabled) ? 1 : 0,
-      defaultAuthProfileId: updates.defaultAuthProfileId !== undefined
-        ? updates.defaultAuthProfileId
-        : (existing.defaultAuthProfileId ?? null),
+      defaultAuthProfileId:
+        updates.defaultAuthProfileId !== undefined
+          ? updates.defaultAuthProfileId
+          : (existing.defaultAuthProfileId ?? null),
       tagsJson: serializeJson(updates.tags ?? existing.tags),
-      updatedAt: now
+      updatedAt: now,
     });
 
     return this.getWorkflow(workflowId);
@@ -1009,7 +1055,7 @@ export class WaypointRepository {
       ).run({
         key: setting.key,
         valueJson: serializeJson(setting.value),
-        updatedAt: setting.updatedAt
+        updatedAt: setting.updatedAt,
       });
     });
 
@@ -1026,10 +1072,7 @@ export class WaypointRepository {
   }
 
   public listSettings(): Setting[] {
-    return prepareNamed(
-      this.database,
-      'SELECT * FROM settings ORDER BY key ASC'
-    )
+    return prepareNamed(this.database, 'SELECT * FROM settings ORDER BY key ASC')
       .all()
       .map((row) => mapSettingRow(row as SqliteRow));
   }
@@ -1053,6 +1096,6 @@ export function openWaypointDatabase(filename = ':memory:'): WaypointDatabase {
   return {
     db,
     repository: new WaypointRepository(db),
-    close: () => db.close()
+    close: () => db.close(),
   };
 }

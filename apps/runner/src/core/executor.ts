@@ -3,18 +3,21 @@ import { randomUUID } from 'node:crypto';
 import type {
   AttachedTarget,
   FailureCode,
+  HealingTelemetry,
   Locator,
   RepairRecord,
   RunEvent,
   TruthClassification,
   Workflow,
-  WorkflowStep
+  WorkflowStep,
 } from '@waypoint/shared-types';
 
+import { HealingError } from './healer.js';
 import { classifyError, computeRetryDelay, LocatorResolutionError } from './locate.js';
 
 export interface ExecuteStepContext {
   runId: string;
+  healingEnabled?: boolean;
   stepIndex: number;
   attempt: number;
   signal: AbortSignal;
@@ -31,7 +34,7 @@ export interface ExecuteStepContext {
  * `resolvedTruthId` is the data-truth-id found on the target element in the DOM.
  * `truthClassification` classifies whether it was a True Positive, False Positive, or True Negative.
  */
-export interface StepExecutionResult {
+export interface StepExecutionResult extends HealingTelemetry {
   resolvedLocator?: Locator | undefined;
   usedFallback?: boolean | undefined;
   resolvedTruthId?: string | undefined;
@@ -89,12 +92,13 @@ export const noopBrowserLauncher: BrowserLauncher = {
       headless: true,
       slowMo: 0,
       contextIsolation: 'isolated',
-      browserEngine: 'noop'
+      browserEngine: 'noop',
     };
-  }
+  },
 };
 
 export interface ExecuteWorkflowOptions {
+  healingEnabled?: boolean;
   runId?: string;
   authProfileId?: string;
   debugMode?: boolean;
@@ -125,11 +129,13 @@ export async function* executeWorkflow(
     runId,
     workflowId: workflow.workflowId,
     workflowVersion: workflow.workflowVersion,
-    startedAt
+    startedAt,
   };
 
   let finalStatus: 'succeeded' | 'failed' | 'canceled' = 'succeeded';
-  let finalError: { code: string; message: string; stepId?: string; repairRecord?: RepairRecord } | undefined;
+  let finalError:
+    | { code: string; message: string; stepId?: string; repairRecord?: RepairRecord }
+    | undefined;
 
   for (let i = fromIndex; i < workflow.steps.length; i++) {
     if (signal.aborted) {
@@ -161,7 +167,8 @@ export async function* executeWorkflow(
       'dataTruthId' in step && typeof step.dataTruthId === 'string' && step.dataTruthId
         ? step.dataTruthId
         : undefined;
-    const expectedTruthId: string | undefined = directTruthId || targetTruthId || undefined;
+    const expectedTruthId: string | undefined =
+      step.snapshot?.expectedTruthId || directTruthId || targetTruthId || undefined;
 
     while (attempt <= maxAttempts) {
       if (signal.aborted) {
@@ -177,23 +184,31 @@ export async function* executeWorkflow(
         stepIndex: i,
         stepType: step.type,
         startedAt: stepStartedAt,
-        attempt
+        attempt,
       };
 
       try {
         const result = await launcher.executeStep(step, {
           runId,
           stepIndex: i,
+          healingEnabled: options.healingEnabled ?? false,
           attempt,
-          signal
+          signal,
         });
         const finishedAt = now().toISOString();
-        const resolvedTruthId = result && 'resolvedTruthId' in result ? result.resolvedTruthId : undefined;
+        const resolvedTruthId =
+          result && 'resolvedTruthId' in result ? result.resolvedTruthId : undefined;
         let truthClassification: TruthClassification | undefined =
-          result && 'truthClassification' in result ? result.truthClassification : undefined;
+          result && 'truthClassification' in result
+            ? result.truthClassification
+            : undefined;
 
         if (!truthClassification && expectedTruthId !== undefined) {
-          if (expectedTruthId && resolvedTruthId && expectedTruthId === resolvedTruthId) {
+          if (
+            expectedTruthId &&
+            resolvedTruthId &&
+            expectedTruthId === resolvedTruthId
+          ) {
             truthClassification = 'true_positive';
           } else {
             truthClassification = 'false_positive';
@@ -209,6 +224,7 @@ export async function* executeWorkflow(
           durationMs: Date.now() - stepStartMs,
           // Carry the winning locator out so it reaches persistence. Omitted
           // rather than set to undefined so schema parsing stays strict.
+          ...(result ? healingFields(result) : { healingAttempted: false }),
           ...(result?.resolvedLocator
             ? { resolvedLocator: result.resolvedLocator }
             : {}),
@@ -217,26 +233,27 @@ export async function* executeWorkflow(
             : {}),
           ...(truthClassification ? { truthClassification } : {}),
           ...(resolvedTruthId ? { resolvedTruthId } : {}),
-          ...(expectedTruthId ? { expectedTruthId } : {})
+          ...(expectedTruthId ? { expectedTruthId } : {}),
         };
         succeeded = true;
         break;
       } catch (err) {
-        const failureCode: FailureCode = classifyError(err, step);
+        const failureCode: FailureCode =
+          err instanceof HealingError
+            ? err.telemetry.healingOutcome === 'needs_manual_intervention'
+              ? 'needs_manual_intervention'
+              : 'locator_not_found'
+            : classifyError(err, step);
 
-        if (attempt < maxAttempts) {
-          const delayMs = computeRetryDelay(
-            attempt,
-            policy.backoffMs,
-            policy.strategy
-          );
+        if (!(err instanceof HealingError) && attempt < maxAttempts) {
+          const delayMs = computeRetryDelay(attempt, policy.backoffMs, policy.strategy);
           yield {
             kind: 'step.retrying',
             runId,
             stepId: step.id,
             stepIndex: i,
             attempt: attempt + 1,
-            delayMs
+            delayMs,
           };
           if (delayMs > 0) {
             await new Promise((resolve) => setTimeout(resolve, delayMs));
@@ -246,18 +263,21 @@ export async function* executeWorkflow(
         }
         // Out of attempts.
         const finishedAt = now().toISOString();
-        const message =
-          err instanceof Error ? err.message : 'Step execution failed.';
+        const message = err instanceof Error ? err.message : 'Step execution failed.';
         finalError = {
           code: failureCode,
           message,
           stepId: step.id,
           ...(err instanceof LocatorResolutionError
             ? { repairRecord: err.failure.repairRecord }
-            : {})
+            : {}),
         };
         let failTruthClassification: TruthClassification | undefined;
-        if (failureCode === 'locator_not_found' || failureCode === 'ambiguous_locator') {
+        if (
+          failureCode === 'locator_not_found' ||
+          failureCode === 'ambiguous_locator' ||
+          failureCode === 'needs_manual_intervention'
+        ) {
           failTruthClassification = 'true_negative';
         }
 
@@ -269,8 +289,13 @@ export async function* executeWorkflow(
           finishedAt,
           durationMs: Date.now() - stepStartMs,
           error: finalError,
-          ...(failTruthClassification ? { truthClassification: failTruthClassification } : {}),
-          ...(expectedTruthId ? { expectedTruthId } : {})
+          ...(err instanceof Error && 'telemetry' in err
+            ? healingFields(err.telemetry as HealingTelemetry)
+            : { healingAttempted: false }),
+          ...(failTruthClassification
+            ? { truthClassification: failTruthClassification }
+            : {}),
+          ...(expectedTruthId ? { expectedTruthId } : {}),
         };
         finalStatus = 'failed';
         break;
@@ -293,6 +318,27 @@ export async function* executeWorkflow(
     runId,
     status: finalStatus,
     finishedAt: now().toISOString(),
-    error: finalError
+    error: finalError,
+  };
+}
+
+function healingFields(value: HealingTelemetry): HealingTelemetry {
+  const {
+    healingAttempted,
+    healingOutcome,
+    healedScore,
+    ambiguityMargin,
+    regeneratedLocator,
+    topCandidates,
+    healingLatencyMs,
+  } = value;
+  return {
+    healingAttempted: healingAttempted ?? false,
+    healingOutcome,
+    healedScore,
+    ambiguityMargin,
+    regeneratedLocator,
+    topCandidates,
+    healingLatencyMs,
   };
 }

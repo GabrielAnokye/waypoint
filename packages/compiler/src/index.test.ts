@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   type RawRecordedEventInput,
   type RecordingSessionInput,
-  type Target
+  type Target,
 } from '@waypoint/shared-types';
 
 import { compileRecording } from './index.js';
@@ -15,41 +15,74 @@ function session(events: RawRecordedEventInput[]): RecordingSessionInput {
     recordingId: 'rec_test',
     name: 'Test recording',
     startedAt: BASE_TIME,
-    events
+    events,
   };
 }
 
 describe('compileRecording — normalization pipeline', () => {
   it('keeps rapid Alpha/Beta/Gamma clicks with shared semantics and distinct fallbacks', () => {
-    const wf = compileRecording(session(['alpha', 'beta', 'gamma'].map((name, index) => ({
-      eventId: `delete_${name}`, type: 'click', atMs: index * 100, tabId: 't1', button: 'left',
-      target: {
-        primaryLocator: { kind: 'role', role: 'button', name: 'Delete' },
-        fallbackLocators: [{ kind: 'css', selector: `div:nth-of-type(${index + 1}) > button` }]
-      }
-    }))));
-    const clicks = wf.steps.filter(step => step.type === 'click');
+    const wf = compileRecording(
+      session(
+        ['alpha', 'beta', 'gamma'].map((name, index) => ({
+          eventId: `delete_${name}`,
+          type: 'click',
+          atMs: index * 100,
+          tabId: 't1',
+          button: 'left',
+          target: {
+            primaryLocator: { kind: 'role', role: 'button', name: 'Delete' },
+            fallbackLocators: [
+              { kind: 'css', selector: `div:nth-of-type(${index + 1}) > button` },
+            ],
+          },
+        }))
+      )
+    );
+    const clicks = wf.steps.filter((step) => step.type === 'click');
     expect(clicks).toHaveLength(3);
-    expect(clicks.map(step => step.debug.sourceEventIds)).toEqual([
-      ['delete_alpha'], ['delete_beta'], ['delete_gamma']
+    expect(clicks.map((step) => step.debug.sourceEventIds)).toEqual([
+      ['delete_alpha'],
+      ['delete_beta'],
+      ['delete_gamma'],
     ]);
   });
   it('1. typing + submit → single type then press(Enter)', () => {
     const inputTarget = {
       primaryLocator: { kind: 'role', role: 'textbox', name: 'Email' },
-      fallbackLocators: []
+      fallbackLocators: [],
     } satisfies Target;
     const formTarget = {
       primaryLocator: { kind: 'css', selector: 'form#login' },
-      fallbackLocators: []
+      fallbackLocators: [],
     } satisfies Target;
 
     const wf = compileRecording(
       session([
-        { eventId: 'e1', type: 'input', atMs: 0, tabId: 't1', target: inputTarget, value: 'a' },
-        { eventId: 'e2', type: 'input', atMs: 50, tabId: 't1', target: inputTarget, value: 'al' },
-        { eventId: 'e3', type: 'input', atMs: 100, tabId: 't1', target: inputTarget, value: 'alice' },
-        { eventId: 'e4', type: 'submit', atMs: 200, tabId: 't1', target: formTarget }
+        {
+          eventId: 'e1',
+          type: 'input',
+          atMs: 0,
+          tabId: 't1',
+          target: inputTarget,
+          value: 'a',
+        },
+        {
+          eventId: 'e2',
+          type: 'input',
+          atMs: 50,
+          tabId: 't1',
+          target: inputTarget,
+          value: 'al',
+        },
+        {
+          eventId: 'e3',
+          type: 'input',
+          atMs: 100,
+          tabId: 't1',
+          target: inputTarget,
+          value: 'alice',
+        },
+        { eventId: 'e4', type: 'submit', atMs: 200, tabId: 't1', target: formTarget },
       ])
     );
 
@@ -77,10 +110,10 @@ describe('compileRecording — normalization pipeline', () => {
           tabId: 't1',
           target: {
             primaryLocator: { kind: 'label', label: 'Country' },
-            fallbackLocators: []
+            fallbackLocators: [],
           },
-          option: { by: 'label', value: 'Ghana' }
-        }
+          option: { by: 'label', value: 'Ghana' },
+        },
       ])
     );
 
@@ -93,12 +126,19 @@ describe('compileRecording — normalization pipeline', () => {
   it('3a. accidental double-click within window collapses to one click', () => {
     const target = {
       primaryLocator: { kind: 'role', role: 'button', name: 'Save' },
-      fallbackLocators: []
+      fallbackLocators: [],
     } satisfies Target;
     const wf = compileRecording(
       session([
         { eventId: 'e1', type: 'click', atMs: 0, tabId: 't1', target, button: 'left' },
-        { eventId: 'e2', type: 'click', atMs: 150, tabId: 't1', target, button: 'left' }
+        {
+          eventId: 'e2',
+          type: 'click',
+          atMs: 150,
+          tabId: 't1',
+          target,
+          button: 'left',
+        },
       ])
     );
 
@@ -113,12 +153,19 @@ describe('compileRecording — normalization pipeline', () => {
   it('3b. intentional double-click outside window stays as two clicks', () => {
     const target = {
       primaryLocator: { kind: 'role', role: 'button', name: 'Save' },
-      fallbackLocators: []
+      fallbackLocators: [],
     } satisfies Target;
     const wf = compileRecording(
       session([
         { eventId: 'e1', type: 'click', atMs: 0, tabId: 't1', target, button: 'left' },
-        { eventId: 'e2', type: 'click', atMs: 800, tabId: 't1', target, button: 'left' }
+        {
+          eventId: 'e2',
+          type: 'click',
+          atMs: 800,
+          tabId: 't1',
+          target,
+          button: 'left',
+        },
       ])
     );
     // Two clicks on the same target separated by >400ms remain separate.
@@ -130,11 +177,11 @@ describe('compileRecording — normalization pipeline', () => {
   it('4. delayed link click + navigate collapses to single goto with waitFor postcondition for the next interaction', () => {
     const link = {
       primaryLocator: { kind: 'role', role: 'link', name: 'Dashboard' },
-      fallbackLocators: []
+      fallbackLocators: [],
     } satisfies Target;
     const button = {
       primaryLocator: { kind: 'role', role: 'button', name: 'Refresh' },
-      fallbackLocators: []
+      fallbackLocators: [],
     } satisfies Target;
 
     const wf = compileRecording(
@@ -145,15 +192,18 @@ describe('compileRecording — normalization pipeline', () => {
           atMs: 0,
           tabId: 't1',
           target: link,
-          element: { tagName: 'A', attributes: { href: 'https://app.example.com/dashboard' } },
-          button: 'left'
+          element: {
+            tagName: 'A',
+            attributes: { href: 'https://app.example.com/dashboard' },
+          },
+          button: 'left',
         },
         {
           eventId: 'e2',
           type: 'navigate',
           atMs: 2000,
           tabId: 't1',
-          url: 'https://app.example.com/dashboard'
+          url: 'https://app.example.com/dashboard',
         },
         {
           eventId: 'e3',
@@ -161,8 +211,8 @@ describe('compileRecording — normalization pipeline', () => {
           atMs: 3000,
           tabId: 't1',
           target: button,
-          button: 'left'
-        }
+          button: 'left',
+        },
       ])
     );
 
@@ -177,25 +227,39 @@ describe('compileRecording — normalization pipeline', () => {
   it('5. SPA route transition (click + historyChange + click) → click, waitFor, click', () => {
     const link = {
       primaryLocator: { kind: 'role', role: 'link', name: 'Profile' },
-      fallbackLocators: []
+      fallbackLocators: [],
     } satisfies Target;
     const tab = {
       primaryLocator: { kind: 'role', role: 'tab', name: 'Settings' },
-      fallbackLocators: []
+      fallbackLocators: [],
     } satisfies Target;
 
     const wf = compileRecording(
       session([
-        { eventId: 'e1', type: 'click', atMs: 0, tabId: 't1', target: link, button: 'left' },
+        {
+          eventId: 'e1',
+          type: 'click',
+          atMs: 0,
+          tabId: 't1',
+          target: link,
+          button: 'left',
+        },
         {
           eventId: 'e2',
           type: 'historyChange',
           atMs: 100,
           tabId: 't1',
           kind: 'pushState',
-          url: 'https://app.example.com/profile'
+          url: 'https://app.example.com/profile',
         },
-        { eventId: 'e3', type: 'click', atMs: 500, tabId: 't1', target: tab, button: 'left' }
+        {
+          eventId: 'e3',
+          type: 'click',
+          atMs: 500,
+          tabId: 't1',
+          target: tab,
+          button: 'left',
+        },
       ])
     );
 
@@ -215,11 +279,16 @@ describe('compileRecording — normalization pipeline', () => {
           atMs: 0,
           tabId: 't1',
           target: {
-            primaryLocator: { kind: 'css', selector: 'div.modal > button:nth-of-type(3)' },
-            fallbackLocators: [{ kind: 'xpath', selector: '//div[@class="modal"]/button[3]' }]
+            primaryLocator: {
+              kind: 'css',
+              selector: 'div.modal > button:nth-of-type(3)',
+            },
+            fallbackLocators: [
+              { kind: 'xpath', selector: '//div[@class="modal"]/button[3]' },
+            ],
           },
-          button: 'left'
-        }
+          button: 'left',
+        },
       ])
     );
 
@@ -241,10 +310,12 @@ describe('compileRecording — normalization pipeline', () => {
           target: {
             primaryLocator: { kind: 'role', role: 'button', name: 'Submit' },
             fallbackLocators: [],
-            framePath: [{ index: 0, name: 'embed', url: 'https://example.com/iframe.html' }]
+            framePath: [
+              { index: 0, name: 'embed', url: 'https://example.com/iframe.html' },
+            ],
           },
-          button: 'left'
-        }
+          button: 'left',
+        },
       ])
     );
 
@@ -257,17 +328,31 @@ describe('compileRecording — normalization pipeline', () => {
   it('8. modal open + click inside → click, waitFor, click', () => {
     const open = {
       primaryLocator: { kind: 'role', role: 'button', name: 'Open modal' },
-      fallbackLocators: []
+      fallbackLocators: [],
     } satisfies Target;
     const inside = {
       primaryLocator: { kind: 'role', role: 'button', name: 'Confirm' },
-      fallbackLocators: []
+      fallbackLocators: [],
     } satisfies Target;
 
     const wf = compileRecording(
       session([
-        { eventId: 'e1', type: 'click', atMs: 0, tabId: 't1', target: open, button: 'left' },
-        { eventId: 'e2', type: 'click', atMs: 600, tabId: 't1', target: inside, button: 'left' }
+        {
+          eventId: 'e1',
+          type: 'click',
+          atMs: 0,
+          tabId: 't1',
+          target: open,
+          button: 'left',
+        },
+        {
+          eventId: 'e2',
+          type: 'click',
+          atMs: 600,
+          tabId: 't1',
+          target: inside,
+          button: 'left',
+        },
       ])
     );
 
@@ -289,10 +374,10 @@ describe('compileRecording — normalization pipeline', () => {
           tabId: 't1',
           target: {
             primaryLocator: { kind: 'label', label: 'Username' },
-            fallbackLocators: []
+            fallbackLocators: [],
           },
-          value: 'alice'
-        }
+          value: 'alice',
+        },
       ])
     );
 
@@ -310,15 +395,15 @@ describe('compileRecording — normalization pipeline', () => {
           type: 'tabOpened',
           atMs: 0,
           tabId: 't2',
-          initialUrl: 'https://example.com'
+          initialUrl: 'https://example.com',
         },
         {
           eventId: 'e2',
           type: 'navigate',
           atMs: 100,
           tabId: 't2',
-          url: 'https://example.com/dashboard'
-        }
+          url: 'https://example.com/dashboard',
+        },
       ])
     );
 
@@ -338,10 +423,10 @@ describe('compileRecording — normalization pipeline', () => {
           tabId: 't1',
           target: {
             primaryLocator: { kind: 'css', selector: '#submit-btn' },
-            fallbackLocators: [{ kind: 'role', role: 'button', name: 'Submit' }]
+            fallbackLocators: [{ kind: 'role', role: 'button', name: 'Submit' }],
           },
-          button: 'left'
-        }
+          button: 'left',
+        },
       ])
     );
 
@@ -360,10 +445,10 @@ describe('compileRecording — normalization pipeline', () => {
           tabId: 't1',
           target: {
             primaryLocator: { kind: 'label', label: 'Password' },
-            fallbackLocators: []
+            fallbackLocators: [],
           },
           value: '',
-          redacted: true
+          redacted: true,
         },
         {
           eventId: 'e2',
@@ -372,10 +457,10 @@ describe('compileRecording — normalization pipeline', () => {
           tabId: 't1',
           target: {
             primaryLocator: { kind: 'role', role: 'button', name: 'Sign in' },
-            fallbackLocators: []
+            fallbackLocators: [],
           },
-          button: 'left'
-        }
+          button: 'left',
+        },
       ])
     );
 
@@ -394,10 +479,10 @@ describe('compileRecording — normalization pipeline', () => {
           target: {
             primaryLocator: { kind: 'role', role: 'button', name: 'Submit Order' },
             fallbackLocators: [],
-            dataTruthId: 'submit-order-alpha'
+            dataTruthId: 'submit-order-alpha',
           },
-          button: 'left'
-        }
+          button: 'left',
+        },
       ])
     );
 
@@ -407,13 +492,61 @@ describe('compileRecording — normalization pipeline', () => {
   });
 
   it('preserves the next target identity on an inferred wait', () => {
-    const wf = compileRecording(session([
-      { eventId: 'nav', type: 'navigate', atMs: 0, tabId: 't1', url: 'https://example.com' },
-      { eventId: 'click', type: 'click', atMs: 100, tabId: 't1', button: 'left', target: {
-        primaryLocator: { kind: 'role', role: 'button', name: 'Delete' },
-        fallbackLocators: [], dataTruthId: 'delete-beta'
-      } }
-    ]));
-    expect(wf.steps.find(step => step.type === 'waitFor')?.dataTruthId).toBe('delete-beta');
+    const wf = compileRecording(
+      session([
+        {
+          eventId: 'nav',
+          type: 'navigate',
+          atMs: 0,
+          tabId: 't1',
+          url: 'https://example.com',
+        },
+        {
+          eventId: 'click',
+          type: 'click',
+          atMs: 100,
+          tabId: 't1',
+          button: 'left',
+          target: {
+            primaryLocator: { kind: 'role', role: 'button', name: 'Delete' },
+            fallbackLocators: [],
+            dataTruthId: 'delete-beta',
+          },
+        },
+      ])
+    );
+    expect(wf.steps.find((step) => step.type === 'waitFor')?.dataTruthId).toBe(
+      'delete-beta'
+    );
   });
+});
+
+it('preserves capture-time snapshot while keeping truth out of locator features', () => {
+  const snapshot = {
+    tagName: 'button',
+    attributes: { type: 'submit' },
+    accessibleName: 'Continue',
+    innerText: 'Continue',
+    ancestorTags: ['form'],
+    siblingIndex: 0,
+    boundingBox: { x: 50, y: 40, width: 80, height: 20 },
+    expectedTruthId: 'annotation-only',
+  };
+  const workflow = compileRecording(
+    session([
+      {
+        eventId: 'capture-snapshot',
+        type: 'click',
+        atMs: 0,
+        tabId: 't',
+        button: 'left',
+        target: {
+          primaryLocator: { kind: 'role', role: 'button', name: 'Continue' },
+          fallbackLocators: [],
+          snapshot,
+        },
+      },
+    ])
+  );
+  expect(workflow.steps.find((s) => s.type === 'click')?.snapshot).toEqual(snapshot);
 });

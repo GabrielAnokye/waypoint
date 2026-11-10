@@ -9,9 +9,16 @@
     ".": {
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
+    },
+    "./dom-snapshot": {
+      "import": "./dist/dom-snapshot.js",
+      "types": "./dist/dom-snapshot.d.ts",
+      "default": "./dist/dom-snapshot.js"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc -b",
     "typecheck": "tsc -b --pretty false",
@@ -19,6 +26,7 @@
     "clean": "rimraf dist"
   },
   "dependencies": {
+    "dom-accessibility-api": "^0.7.1",
     "zod": "^3.23.8"
   }
 }
