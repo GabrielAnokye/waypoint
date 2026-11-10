@@ -110,17 +110,6 @@ export async function executeElementAction(
       );
     }, coordinate);
     selected = (hit.asElement() as ElementHandle<Element> | undefined) ?? undefined;
-    if (selected && (step.type === 'type' || step.type === 'select')) {
-      const tag = await selected.evaluate((el) => el.tagName);
-      const compatible =
-        step.type === 'select'
-          ? tag === 'SELECT'
-          : await selected.isEditable().catch(() => false);
-      if (!compatible) {
-        await selected.dispose();
-        selected = undefined;
-      }
-    }
     resolvedLocator = coordinate;
   } else {
     // We already selected the frame; the resolver must not traverse it again.
@@ -137,9 +126,71 @@ export async function executeElementAction(
     } else if (!options.healingEnabled || !step.snapshot)
       throw new LocatorResolutionError(resolution);
   }
+  if (selected) {
+    const action =
+      step.type === 'type'
+        ? { type: 'type' as const, value: step.value }
+        : step.type === 'select'
+          ? { type: 'select' as const, option: step.option }
+          : { type: 'other' as const };
+    const compatible = await (selected as ElementHandle<Element>).evaluate(
+      (el, action) => {
+        if ((el as HTMLInputElement).disabled || (el as HTMLInputElement).readOnly)
+          return false;
+        if (action.type === 'type') {
+          if (el.tagName === 'TEXTAREA' || (el as HTMLElement).isContentEditable)
+            return true;
+          if (el.tagName !== 'INPUT') return false;
+          const type = (el as HTMLInputElement).type;
+          if (
+            ![
+              'text',
+              'email',
+              'password',
+              'search',
+              'tel',
+              'url',
+              'number',
+              'date',
+              'time',
+              'datetime-local',
+              'month',
+              'week',
+            ].includes(type)
+          )
+            return false;
+          const probe = el.ownerDocument.createElement('input');
+          probe.type = type;
+          probe.value = action.value;
+          return probe.value === action.value;
+        }
+        if (action.type === 'select') {
+          if (el.tagName !== 'SELECT') return false;
+          const options = Array.from((el as HTMLSelectElement).options);
+          return options.some(
+            (option, index) =>
+              !option.disabled &&
+              (action.option.by === 'index'
+                ? index === Number(action.option.value)
+                : action.option.by === 'label'
+                  ? option.label === String(action.option.value)
+                  : option.value === String(action.option.value))
+          );
+        }
+        return true;
+      },
+      action
+    );
+    if (!compatible || !(await selected.isVisible())) {
+      if (!('count' in selected)) await selected.dispose();
+      selected = undefined;
+    }
+  }
   if (!selected) {
     if (!options.healingEnabled || !step.snapshot)
-      throw new Error('locator_not_found: nothing interactive at recorded coordinates');
+      throw new Error(
+        'locator_not_found: no visible target supports the recorded action'
+      );
     const decision = await heal(frame, step.snapshot, options.thresholds);
     telemetry = decision.telemetry;
     if (!decision.selected) throw new HealingError(telemetry);

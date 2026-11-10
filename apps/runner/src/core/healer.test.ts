@@ -179,6 +179,56 @@ describe('real Chromium healing integration', () => {
     expect(result.telemetry.ambiguityMargin).toBeLessThan(0.15);
     expect(result.telemetry.topCandidates).toHaveLength(3);
   });
+  it('keeps harvested candidate identity when another control is inserted before it', async () => {
+    await page.setContent(sample);
+    const candidates = await enumerateCandidates(page.mainFrame());
+    const selected = candidates.find(
+      (c) => c.snapshot.accessibleName === 'Approve invoice 42'
+    )!;
+    await page.evaluate(() => {
+      const button = document.createElement('button');
+      button.textContent = 'Inserted distractor';
+      document.body.prepend(button);
+    });
+    expect(await selected.handle.getAttribute('data-truth-id')).toBe('target');
+    await Promise.all(candidates.map((c) => c.handle.dispose()));
+  });
+  it('heals incompatible fill and select targets using observable action checks only', async () => {
+    for (const kind of ['type', 'select'] as const) {
+      const markup =
+        kind === 'type'
+          ? '<input type="date" style="position:absolute;left:20px;top:20px;width:150px"><textarea style="position:absolute;left:400px;top:400px" placeholder="Unique biography" data-truth-id="bio"></textarea>'
+          : '<select style="position:absolute;left:20px;top:20px"><option value="us">USA</option></select><select style="position:absolute;left:400px;top:400px" aria-label="Unique skills" data-truth-id="skills"><option value="py">Python</option></select>';
+      await page.setContent(markup);
+      await installFeatures(page.mainFrame());
+      const target = page.locator(kind === 'type' ? 'textarea' : 'select').last();
+      const recorded = await snapshotElement(target, true);
+      const hit = await page
+        .locator(kind === 'type' ? 'input' : 'select')
+        .first()
+        .boundingBox();
+      const step = WorkflowStepSchema.parse({
+        id: 'incompatible',
+        type: kind,
+        primaryLocator: {
+          kind: 'coordinates',
+          x: Math.round(hit!.x + hit!.width / 2),
+          y: Math.round(hit!.y + hit!.height / 2),
+        },
+        snapshot: recorded,
+        ...(kind === 'type'
+          ? { value: 'Biography' }
+          : { option: { by: 'value', value: 'py' } }),
+      });
+      const result = await executeElementAction(page, step, {
+        allowedFamily: 'coordinate',
+        healingEnabled: true,
+      });
+      expect(result.healingAttempted).toBe(true);
+      expect(result.healingOutcome).toBe('autonomous_repair');
+      expect(result.resolvedTruthId).toBe(kind === 'type' ? 'bio' : 'skills');
+    }
+  });
   it('never uses grading metadata to trigger a repair of an otherwise unique locator', async () => {
     await page.setContent(
       '<button id="wrong" data-truth-id="wrong">Click</button><button data-truth-id="expected">Click</button>'
@@ -243,6 +293,7 @@ describe('real Chromium healing integration', () => {
       { name: 'tables', spec: { truth: 'delete-1' } },
       { name: 'iframe', spec: { truth: 'iframe-btn-approve', frame: 'actions-frame' } },
       { name: 'shadow-dom', spec: { truth: 'shadow-button' } },
+      { name: 'shadow-dom', spec: { truth: 'slotted-button' } },
       {
         name: 'spa',
         spec: { truth: 'save-settings', setup: "renderPage('/settings')" },

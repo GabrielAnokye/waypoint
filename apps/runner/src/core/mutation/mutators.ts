@@ -210,7 +210,6 @@ export function mutateStructural(html: string, options: MutatorOptions = {}): st
     'textarea',
     'fieldset',
     'form',
-    'textarea',
   ]);
 
   // Traverse and collect elements to wrap
@@ -245,6 +244,7 @@ export function mutateStructural(html: string, options: MutatorOptions = {}): st
       attrs: [
         { name: 'class', value: `wrapper-${wrapperId}` },
         { name: 'data-mutation', value: 'structural-wrapper' },
+        ...el.attrs.filter((a) => a.name === 'slot').map((a) => ({ ...a })),
       ],
       childNodes: [el],
       parentNode: parent,

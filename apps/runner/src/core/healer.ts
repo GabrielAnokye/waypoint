@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { Frame, Locator as PwLocator } from 'playwright';
+import type { ElementHandle, Frame, Locator as PwLocator } from 'playwright';
 import type {
   ElementSnapshot,
   FeatureScores,
@@ -18,7 +18,7 @@ export interface Thresholds {
 export interface Candidate {
   index: number;
   snapshot: ElementSnapshot;
-  handle: PwLocator;
+  handle: ElementHandle<Element>;
 }
 export interface HealingDecision {
   telemetry: HealingTelemetry;
@@ -156,7 +156,8 @@ export function gateCandidates(
 export async function enumerateCandidates(frame: Frame): Promise<Candidate[]> {
   await installFeatures(frame);
   const all = frame.locator(INTERACTIVE_SELECTOR);
-  const rows = await all.evaluateAll((elements) => {
+  const handles = (await all.elementHandles()) as ElementHandle<Element>[];
+  const rows = await frame.evaluate((elements) => {
     const api = (
       window as unknown as {
         WaypointDOM: { captureFeatures(el: Element): ElementSnapshot };
@@ -172,8 +173,14 @@ export async function enumerateCandidates(frame: Frame): Promise<Candidate[]> {
         ? [{ index, snapshot: api.captureFeatures(el) }]
         : [];
     });
-  });
-  return rows.map((row) => ({ ...row, handle: all.nth(row.index) }));
+  }, handles);
+  const retained = new Set(rows.map((row) => row.index));
+  await Promise.all(
+    handles
+      .filter((_handle, index) => !retained.has(index))
+      .map((handle) => handle.dispose())
+  );
+  return rows.map((row) => ({ ...row, handle: handles[row.index]! }));
 }
 
 export async function heal(
@@ -186,18 +193,22 @@ export async function heal(
   const ranked = rankCandidates(candidates, snapshot);
   const telemetry = gateCandidates(ranked, thresholds);
   let selected: PwLocator | undefined;
-  if (telemetry.healingOutcome === 'autonomous_repair') {
-    const token = randomUUID();
-    const candidate = candidates.find((c) => c.index === ranked[0]!.index)!;
-    await candidate.handle.evaluate(
-      (el, token) => el.setAttribute('data-waypoint-healed', token),
-      token
-    );
-    telemetry.regeneratedLocator = {
-      kind: 'css',
-      selector: `[data-waypoint-healed="${token}"]`,
-    };
-    selected = frame.locator(telemetry.regeneratedLocator.selector);
+  try {
+    if (telemetry.healingOutcome === 'autonomous_repair') {
+      const token = randomUUID();
+      const candidate = candidates.find((c) => c.index === ranked[0]!.index)!;
+      await candidate.handle.evaluate((el, token) => {
+        if (!el.isConnected) throw new Error('Candidate detached before repair');
+        el.setAttribute('data-waypoint-healed', token);
+      }, token);
+      telemetry.regeneratedLocator = {
+        kind: 'css',
+        selector: `[data-waypoint-healed="${token}"]`,
+      };
+      selected = frame.locator(telemetry.regeneratedLocator.selector);
+    }
+  } finally {
+    await Promise.all(candidates.map((candidate) => candidate.handle.dispose()));
   }
   telemetry.healingLatencyMs = performance.now() - started;
   return { telemetry, ...(selected ? { selected } : {}) };

@@ -18,6 +18,8 @@ interpolations are protected during AST serialization. ID lookups, including
 computed IDs such as `step + i`, and class-based script references are rewritten
 consistently with markup. Table elements keep valid ancestry; wrappers are
 inserted around controls/containers rather than invalid wrappers around rows.
+Slotted controls pass their slot assignment to the wrapper so that they remain
+rendered by the component.
 
 The immutability test audits all **177 source truth-ID declarations**, including
 those in templates and srcdoc, across both variants and each mutation. Some
@@ -67,7 +69,10 @@ prerequisites are not counted as target actions.
 ## Phase 4: scoring and confidence gates
 
 `apps/runner/src/core/healer.ts` enumerates visible interactive candidates in the
-recorded frame, with Playwright piercing open shadow roots. Feature extraction
+recorded frame, with Playwright piercing open shadow roots. Candidate features
+are extracted from fixed element handles, so an insertion before the candidate
+cannot redirect a lazy ordinal locator to a different element. Handles are
+released after the decision. Feature extraction
 has an explicit attribute allowlist; it never scans all HTML attributes. The
 pure scorer does not access expected truth IDs or unknown attribute keys.
 
@@ -124,14 +129,16 @@ Each repetition uses a deterministic seed shared across families and passes.
 The same fixed synthetic corpus is repeated; repetitions are not independent
 websites and should not be treated as such in statistical claims. Four browser
 workers are used by default. Timings include enumeration, extraction, ranking
-and locator synthesis, exclude action execution, and reflect worker contention.
+and locator synthesis/handle cleanup, exclude action execution, and reflect worker contention.
 P95 is the nearest-rank percentile, and mean/P95 are computed from raw attempted
 recovery latencies, not averages of rounded cell statistics.
 
 Baseline TP/FP/TN rates divide by all evaluations. Healing recovery/wrong/manual/
 unrecovered rates divide by attempted recoveries. Final TP/FP rates also include
-original locators that survive. Incompatible coordinate targets are rejected
-without action and may invoke healing. An execution error after an autonomous
+original locators that survive. Action compatibility checks reject unsupported fill types/values, unavailable
+select options, disabled/read-only controls, and hidden targets before action.
+They use only action requirements and ordinary DOM properties, without receiving
+truth annotations. Rejected targets invoke healing when enabled. An execution error after an autonomous
 proposal counts as unrecovered, retaining its error and telemetry in raw data.
 Setup failures abort the experiment rather than being counted as locator TNs.
 
