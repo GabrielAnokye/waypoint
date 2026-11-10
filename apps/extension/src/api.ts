@@ -129,6 +129,7 @@ export const api = {
       healingEnabled?: boolean;
       attachedTarget?: AttachedTarget;
       reloadBeforeRun?: boolean;
+      useSelectedPage?: boolean;
     }
   ) =>
     runnerFetch<{ runId: string; status: string }>(`/workflows/${workflowId}/run`, {

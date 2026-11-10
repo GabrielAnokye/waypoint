@@ -884,6 +884,7 @@ export const StartRunRequestSchema = z
     engine: RunEngineSchema.optional(),
     attachedTarget: AttachedTargetSchema.optional(),
     reloadBeforeRun: z.boolean().optional(),
+    useSelectedPage: z.boolean().optional(),
   })
   .superRefine((request, ctx) => {
     if (request.engine === 'attached' && !request.attachedTarget) {
@@ -896,12 +897,13 @@ export const StartRunRequestSchema = z
     }
     if (
       request.engine !== 'attached' &&
-      (request.attachedTarget || request.reloadBeforeRun)
+      (request.attachedTarget || request.reloadBeforeRun || request.useSelectedPage)
     ) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['engine'],
-        message: 'Tab selection and reload apply only to attached playback.',
+        message:
+          'Tab selection, selected-page replay and reload apply only to attached playback.',
       });
     }
   });

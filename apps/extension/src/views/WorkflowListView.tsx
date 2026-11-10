@@ -5,14 +5,30 @@ import { useExtensionStore } from '../store';
 
 export function WorkflowListView() {
   const [reloadBeforeRun, setReloadBeforeRun] = useState(false);
+  const [useSelectedPage, setUseSelectedPage] = useState(false);
+  const [healingEnabled, setHealingEnabled] = useState(false);
   const {
-    workflows, workflowOrder, setWorkflows, updateWorkflowInStore, removeWorkflow,
-    setView, setSelectedRunId, setSelectedWorkflowId,
-    runs, setRuns,
-    loading, setLoading,
-    recordingState, recordingId, eventCount,
-    rerecordContext, setRerecordContext,
-    setRecordingState, setRecordingId, setEventCount, setStatus
+    workflows,
+    workflowOrder,
+    setWorkflows,
+    updateWorkflowInStore,
+    removeWorkflow,
+    setView,
+    setSelectedRunId,
+    setSelectedWorkflowId,
+    runs,
+    setRuns,
+    loading,
+    setLoading,
+    recordingState,
+    recordingId,
+    eventCount,
+    rerecordContext,
+    setRerecordContext,
+    setRecordingState,
+    setRecordingId,
+    setEventCount,
+    setStatus,
   } = useExtensionStore();
 
   // Poll event count while recording.
@@ -25,7 +41,9 @@ export function WorkflowListView() {
           if (res.ok && res.payload) {
             setEventCount(res.payload.eventCount);
           }
-        } catch { /* ignore */ }
+        } catch {
+          /* ignore */
+        }
       }, 1000);
     }
     return () => {
@@ -87,7 +105,13 @@ export function WorkflowListView() {
       setRecordingState('stopping');
       const response = await api.stopRecording();
       if (response.ok && response.payload) {
-        const { recordingId: recId, name, startedAt, events, eventCount: count } = response.payload;
+        const {
+          recordingId: recId,
+          name,
+          startedAt,
+          events,
+          eventCount: count,
+        } = response.payload;
         setEventCount(count ?? 0);
 
         const spliceCtx = rerecordContext;
@@ -98,7 +122,7 @@ export function WorkflowListView() {
             // Splice: compile new events and replace steps from the given index
             const result = await api.spliceWorkflow(spliceCtx.workflowId, {
               fromStepIndex: spliceCtx.fromStepIndex,
-              recording: { recordingId: recId, name, startedAt, events }
+              recording: { recordingId: recId, name, startedAt, events },
             });
             setRecordingState('idle');
             setStatus(
@@ -115,10 +139,13 @@ export function WorkflowListView() {
               recordingId: recId,
               name,
               startedAt,
-              events
+              events,
             });
             setRecordingState('idle');
-            setStatus('ready', `Workflow created (${result.workflowId}). ${count} event(s) compiled.`);
+            setStatus(
+              'ready',
+              `Workflow created (${result.workflowId}). ${count} event(s) compiled.`
+            );
             void fetchWorkflows();
           }
         } catch (saveErr) {
@@ -144,9 +171,12 @@ export function WorkflowListView() {
   // starting one shows nothing. Poll until the run shows up (or give up), so
   // the result appears on its own instead of on the next click.
   const runWatchRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  useEffect(() => () => {
-    if (runWatchRef.current) clearInterval(runWatchRef.current);
-  }, []);
+  useEffect(
+    () => () => {
+      if (runWatchRef.current) clearInterval(runWatchRef.current);
+    },
+    []
+  );
 
   function watchRun(runId: string, where: string) {
     if (runWatchRef.current) clearInterval(runWatchRef.current);
@@ -161,7 +191,7 @@ export function WorkflowListView() {
             done.status === 'succeeded' ? 'ready' : 'error',
             done.status === 'succeeded'
               ? `Run finished ${where}.`
-              : done.errorMessage ?? `Run ${done.status}.`
+              : (done.errorMessage ?? `Run ${done.status}.`)
           );
         }
         if (done || Date.now() > deadline) {
@@ -189,19 +219,21 @@ export function WorkflowListView() {
       let attachedTarget;
       if (engine === 'attached') {
         const window = await chrome.windows.getCurrent();
-        if (window.id === undefined) throw new Error('Cannot identify this side panel’s browser window. Reopen the side panel and try again.');
+        if (window.id === undefined)
+          throw new Error(
+            'Cannot identify this side panel’s browser window. Reopen the side panel and try again.'
+          );
         const captured = await api.captureAttachedTarget(window.id);
-        if (!captured.ok || !captured.payload) throw new Error(captured.message ?? 'Cannot identify the selected tab.');
+        if (!captured.ok || !captured.payload)
+          throw new Error(captured.message ?? 'Cannot identify the selected tab.');
         attachedTarget = captured.payload;
       }
       const { runId } = await api.runWorkflow(workflowId, {
         engine,
-        ...(attachedTarget && { attachedTarget, reloadBeforeRun })
+        healingEnabled,
+        ...(attachedTarget && { attachedTarget, reloadBeforeRun, useSelectedPage }),
       });
-      setStatus(
-        'ready',
-        `Run ${runId} running ${where}.`
-      );
+      setStatus('ready', `Run ${runId} running ${where}.`);
       watchRun(runId, where);
     } catch (err) {
       setStatus('error', err instanceof Error ? err.message : 'Run failed.');
@@ -236,7 +268,9 @@ export function WorkflowListView() {
   }
 
   const recentRuns = (workflowId: string) =>
-    Object.values(runs).filter((r) => r.workflowId === workflowId).slice(0, 3);
+    Object.values(runs)
+      .filter((r) => r.workflowId === workflowId)
+      .slice(0, 3);
 
   return (
     <>
@@ -265,6 +299,42 @@ export function WorkflowListView() {
             {recordingState === 'stopping' ? 'Stopping...' : 'New recording'}
           </button>
         )}
+      </section>
+
+      <section className="wp-card" aria-label="Replay options">
+        <p className="wp-label">Replay options</p>
+        <label className="wp-message" style={{ display: 'block', marginBottom: 8 }}>
+          <input
+            type="checkbox"
+            checked={useSelectedPage}
+            onChange={(event) => setUseSelectedPage(event.target.checked)}
+          />{' '}
+          Use selected page for the starting URL
+        </label>
+        <p className="wp-message" style={{ fontSize: 11, marginBottom: 8 }}>
+          For Run in open browser: keep the matching mutation page you opened. The
+          recording stays unchanged; later navigation steps still run.
+        </p>
+        <label className="wp-message" style={{ display: 'block', marginBottom: 8 }}>
+          <input
+            type="checkbox"
+            checked={healingEnabled}
+            onChange={(event) => setHealingEnabled(event.target.checked)}
+          />{' '}
+          Enable self-healing
+        </label>
+        <p className="wp-message" style={{ fontSize: 11, marginBottom: 8 }}>
+          Try a scored repair when recorded locators fail. Uncertain matches stop for
+          manual review.
+        </p>
+        <label className="wp-message" style={{ display: 'block' }}>
+          <input
+            type="checkbox"
+            checked={reloadBeforeRun}
+            onChange={(event) => setReloadBeforeRun(event.target.checked)}
+          />{' '}
+          Reload selected tab before attached replay
+        </label>
       </section>
 
       {/* Workflow list */}
@@ -336,11 +406,7 @@ export function WorkflowListView() {
                 >
                   Run in open browser
                 </button>
-                <label className="wp-label">
-                  <input type="checkbox" checked={reloadBeforeRun}
-                    onChange={(event) => setReloadBeforeRun(event.target.checked)} />
-                  Reload selected tab before attached replay
-                </label>
+
                 <button
                   className="wp-button"
                   onClick={() => {
@@ -359,10 +425,7 @@ export function WorkflowListView() {
                 >
                   Rename
                 </button>
-                <button
-                  className="wp-button"
-                  onClick={() => void handleDuplicate(id)}
-                >
+                <button className="wp-button" onClick={() => void handleDuplicate(id)}>
                   Duplicate
                 </button>
                 <button

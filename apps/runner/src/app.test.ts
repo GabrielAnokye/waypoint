@@ -5,7 +5,10 @@ import { HealthResponseSchema, ScheduleSchema } from '@waypoint/shared-types';
 
 import { buildRunnerServer } from './app.js';
 import type { BrowserLauncher, RunTargetOptions } from './core/executor.js';
-import { AttachedBrowserError } from './core/debug-browser.js';
+import {
+  AttachedBrowserError,
+  assertSafeAttachedNavigation,
+} from './core/debug-browser.js';
 
 const baseEnv = {
   RUNNER_HOST: '127.0.0.1',
@@ -1175,4 +1178,85 @@ describe('schedule CRUD', () => {
     });
     expect(res.statusCode).toBe(404);
   });
+});
+
+it('replays a file recording on the selected HTTP mutation page without changing the saved workflow', async () => {
+  const database = openWaypointDatabase(':memory:');
+  const observed: string[] = [];
+  const launcher: BrowserLauncher = {
+    async resetForRun(options) {
+      assertSafeAttachedNavigation(options!.attachedTarget!.url, options!.recordedUrl!);
+    },
+    async executeStep(step, ctx) {
+      if (step.type === 'goto') observed.push(step.url);
+      expect(ctx.healingEnabled).toBe(true);
+    },
+  };
+  const r = buildRunnerServer(baseEnv, {
+    repository: database.repository,
+    attachedBrowserLauncher: launcher,
+  });
+  await r.app.ready();
+  try {
+    const recording = structuredClone(sampleRecording);
+    recording.events[0]!.url = 'file:///fixture/ambiguous.html';
+    const saved = await r.app.inject({
+      method: 'POST',
+      url: '/recordings',
+      payload: recording,
+    });
+    const workflowId = saved.json().workflowId;
+    const selected = {
+      ...attachedTarget,
+      url: 'http://localhost:8080/ambiguous.html?mutation=structural',
+    };
+    const url = `/workflows/${workflowId}/run`;
+    expect(
+      (
+        await r.app.inject({
+          method: 'POST',
+          url,
+          payload: { engine: 'attached', attachedTarget: selected },
+        })
+      ).statusCode
+    ).toBe(409);
+    const started = await r.app.inject({
+      method: 'POST',
+      url,
+      payload: {
+        engine: 'attached',
+        attachedTarget: selected,
+        useSelectedPage: true,
+        healingEnabled: true,
+      },
+    });
+    expect(started.statusCode).toBe(200);
+    await waitForRunStatus(r.app, started.json().runId);
+    expect(observed).toEqual([selected.url]);
+    const original = database.repository.getLatestWorkflowDefinition(workflowId)!;
+    expect(original.steps.find((s) => s.type === 'goto')).toMatchObject({
+      url: 'file:///fixture/ambiguous.html',
+    });
+    expect(
+      database.repository.getRunGraph(started.json().runId)?.run.metadata
+    ).toMatchObject({
+      useSelectedPage: true,
+      recordedStartUrl: 'file:///fixture/ambiguous.html',
+      replayStartUrl: selected.url,
+      researchEligible: false,
+      healingEnabled: true,
+    });
+    expect(
+      (
+        await r.app.inject({
+          method: 'POST',
+          url,
+          payload: { engine: 'isolated', useSelectedPage: true },
+        })
+      ).statusCode
+    ).toBe(400);
+  } finally {
+    await r.app.close();
+    database.close();
+  }
 });

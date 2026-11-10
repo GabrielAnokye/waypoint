@@ -18,6 +18,7 @@ import { spawn } from 'node:child_process';
 import { existsSync, readdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const PORT = process.env.BROWSER_CDP_PORT ?? '9222';
 const PROFILE_DIR =
@@ -45,12 +46,11 @@ function findChromeForTesting() {
   return null;
 }
 
-const SYSTEM_CHROME =
-  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+const SYSTEM_CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 
 let binary = findChromeForTesting();
 if (binary) {
-  console.info('[waypoint] Using Playwright\'s Chrome for Testing build.');
+  console.info("[waypoint] Using Playwright's Chrome for Testing build.");
 } else if (existsSync(SYSTEM_CHROME)) {
   binary = SYSTEM_CHROME;
   console.warn(
@@ -60,7 +60,9 @@ if (binary) {
       '           run: pnpm exec playwright install chromium'
   );
 } else {
-  console.error('[waypoint] No Chrome found. Run: pnpm exec playwright install chromium');
+  console.error(
+    '[waypoint] No Chrome found. Run: pnpm exec playwright install chromium'
+  );
   process.exit(1);
 }
 
@@ -69,14 +71,24 @@ const args = [
   `--remote-debugging-port=${PORT}`,
   `--user-data-dir=${PROFILE_DIR}`,
   '--no-first-run',
-  '--no-default-browser-check'
+  '--no-default-browser-check',
 ];
+const extensionDir = fileURLToPath(new URL('../apps/extension/dist', import.meta.url));
+if (existsSync(join(extensionDir, 'manifest.json'))) {
+  args.push(`--load-extension=${extensionDir}`);
+  console.info(
+    '[waypoint] Loading the built Waypoint extension in this debugging profile.'
+  );
+} else
+  console.warn(
+    '[waypoint] Run pnpm build first to load the Waypoint extension automatically.'
+  );
 if (url) args.push(url);
 
 console.info(`[waypoint] Debug port : http://localhost:${PORT}`);
 console.info(`[waypoint] Profile    : ${PROFILE_DIR}`);
 console.info('[waypoint] Leave this browser open, then use "Run in open browser".');
-console.info('[waypoint] Demo only — runs here inherit this browser\'s state.');
+console.info("[waypoint] Demo only — runs here inherit this browser's state.");
 
 const child = spawn(binary, args, { stdio: 'inherit' });
 child.on('exit', (code) => process.exit(code ?? 0));

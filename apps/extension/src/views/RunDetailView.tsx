@@ -6,6 +6,7 @@ import { api } from '../api';
 import { useExtensionStore } from '../store';
 
 const FAILURE_LABELS: Record<string, string> = {
+  needs_manual_intervention: 'Manual review required — this step was not executed',
   locator_not_found: 'Element not found',
   ambiguous_locator: 'Multiple elements matched',
   timeout: 'Timed out',
@@ -15,28 +16,32 @@ const FAILURE_LABELS: Record<string, string> = {
   blocked_page: 'Page blocked (captcha/access denied)',
   modal_blocked: 'Blocked by modal/dialog',
   step_failed: 'Step execution failed',
-  unknown: 'Unknown error'
+  unknown: 'Unknown error',
 };
 
 function classifyFailure(code?: string): { label: string; suggestion: string } {
   if (!code) return { label: 'Unknown', suggestion: '' };
   const label = FAILURE_LABELS[code] ?? code;
   const suggestions: Record<string, string> = {
+    needs_manual_intervention:
+      'Review the ranked candidates below, then rebind the step in the editor.',
     locator_not_found: 'Try rebinding the element in the workflow editor.',
-    ambiguous_locator: 'Multiple elements match. Add a more specific locator via the editor.',
+    ambiguous_locator:
+      'Multiple elements match. Add a more specific locator via the editor.',
     timeout: 'Increase timeout or check if the page loads correctly.',
     navigation_mismatch: 'The URL may have changed. Update the goto step URL.',
     auth_expired: 'Re-authenticate via the auth profile login session.',
     frame_mismatch: 'The iframe structure may have changed. Rebind the element.',
     blocked_page: 'The site may require manual intervention (captcha, access).',
     modal_blocked: 'A dialog is blocking. Add a dismiss step before this one.',
-    step_failed: 'Check the step configuration and try testing it individually.'
+    step_failed: 'Check the step configuration and try testing it individually.',
   };
   return { label, suggestion: suggestions[code] ?? '' };
 }
 
 export function RunDetailView() {
-  const { selectedRunId, setView, setStatus, setSelectedWorkflowId } = useExtensionStore();
+  const { selectedRunId, setView, setStatus, setSelectedWorkflowId } =
+    useExtensionStore();
   const [run, setRun] = useState<{
     run: {
       id: string;
@@ -84,7 +89,9 @@ export function RunDetailView() {
     setExporting(true);
     try {
       const bundle = await api.getRunDiagnostics(selectedRunId);
-      const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' });
+      const blob = new Blob([JSON.stringify(bundle, null, 2)], {
+        type: 'application/json',
+      });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -122,6 +129,7 @@ export function RunDetailView() {
 
   const statusColor = (s: string) => {
     if (s === 'succeeded') return '#087443';
+    if (s === 'needs_manual_intervention') return '#8c5c00';
     if (s === 'failed') return '#8a1c26';
     if (s === 'running') return '#8c5c00';
     return '#687582';
@@ -172,10 +180,7 @@ export function RunDetailView() {
           {/* Run summary */}
           <section className="wp-card">
             <p className="wp-label">Run {run.run.id.slice(0, 20)}</p>
-            <p
-              className="wp-status"
-              style={{ color: statusColor(run.run.status) }}
-            >
+            <p className="wp-status" style={{ color: statusColor(run.run.status) }}>
               {run.run.status}
             </p>
             <div className="wp-grid">
@@ -203,10 +208,17 @@ export function RunDetailView() {
                   padding: 8,
                   borderRadius: 6,
                   background: 'rgba(138,28,38,0.06)',
-                  border: '1px solid rgba(138,28,38,0.15)'
+                  border: '1px solid rgba(138,28,38,0.15)',
                 }}
               >
-                <p style={{ margin: '0 0 4px', fontWeight: 700, fontSize: 13, color: '#8a1c26' }}>
+                <p
+                  style={{
+                    margin: '0 0 4px',
+                    fontWeight: 700,
+                    fontSize: 13,
+                    color: '#8a1c26',
+                  }}
+                >
                   {classifyFailure(run.run.errorCode).label}
                 </p>
                 {run.run.errorMessage && (
@@ -215,7 +227,14 @@ export function RunDetailView() {
                   </p>
                 )}
                 {classifyFailure(run.run.errorCode).suggestion && (
-                  <p style={{ margin: 0, fontSize: 11, color: '#446074', fontStyle: 'italic' }}>
+                  <p
+                    style={{
+                      margin: 0,
+                      fontSize: 11,
+                      color: '#446074',
+                      fontStyle: 'italic',
+                    }}
+                  >
                     {classifyFailure(run.run.errorCode).suggestion}
                   </p>
                 )}
@@ -242,7 +261,11 @@ export function RunDetailView() {
               run.steps.map((step, i) => {
                 const isExpanded = expandedStep === i;
                 const arts = stepArtifacts(step.id);
-                const failure = step.status === 'failed' ? classifyFailure(step.errorCode) : null;
+                const failure = ['failed', 'needs_manual_intervention'].includes(
+                  step.status
+                )
+                  ? classifyFailure(step.errorCode)
+                  : null;
 
                 return (
                   <div
@@ -252,7 +275,7 @@ export function RunDetailView() {
                       borderBottom:
                         i < run.steps.length - 1
                           ? '1px solid rgba(68,96,116,0.1)'
-                          : undefined
+                          : undefined,
                     }}
                   >
                     <div
@@ -260,7 +283,7 @@ export function RunDetailView() {
                         display: 'flex',
                         alignItems: 'center',
                         gap: 8,
-                        cursor: 'pointer'
+                        cursor: 'pointer',
                       }}
                       onClick={() => setExpandedStep(isExpanded ? null : i)}
                     >
@@ -270,14 +293,16 @@ export function RunDetailView() {
                           height: 8,
                           borderRadius: '50%',
                           background: statusColor(step.status),
-                          flexShrink: 0
+                          flexShrink: 0,
                         }}
                       />
                       <span style={{ fontWeight: 600, fontSize: 13 }}>
                         {i + 1}. {step.stepType}
                       </span>
                       {step.attemptCount > 1 && (
-                        <span style={{ fontSize: 10, color: '#8c5c00', fontWeight: 700 }}>
+                        <span
+                          style={{ fontSize: 10, color: '#8c5c00', fontWeight: 700 }}
+                        >
                           x{step.attemptCount}
                         </span>
                       )}
@@ -286,7 +311,9 @@ export function RunDetailView() {
                       >
                         {step.durationMs != null ? `${step.durationMs}ms` : '...'}
                       </span>
-                      <span style={{ fontSize: 11 }}>{isExpanded ? '\u25B2' : '\u25BC'}</span>
+                      <span style={{ fontSize: 11 }}>
+                        {isExpanded ? '\u25B2' : '\u25BC'}
+                      </span>
                     </div>
 
                     {isExpanded && (
@@ -294,23 +321,80 @@ export function RunDetailView() {
                         <div className="wp-grid" style={{ marginBottom: 6 }}>
                           <div>
                             <p className="wp-label">Step ID</p>
-                            <p className="wp-value" style={{ fontFamily: 'monospace', fontSize: 11 }}>
+                            <p
+                              className="wp-value"
+                              style={{ fontFamily: 'monospace', fontSize: 11 }}
+                            >
                               {step.stepId}
                             </p>
                           </div>
                           <div>
                             <p className="wp-label">Status</p>
-                            <p className="wp-value" style={{ color: statusColor(step.status) }}>
+                            <p
+                              className="wp-value"
+                              style={{ color: statusColor(step.status) }}
+                            >
                               {step.status}
                             </p>
                           </div>
                         </div>
 
+                        {step.truthClassification && (
+                          <div style={{ marginBottom: 8 }}>
+                            <p className="wp-label">Target verification</p>
+                            <p className="wp-value">
+                              {step.truthClassification === 'true_positive'
+                                ? 'Correct target'
+                                : step.truthClassification === 'false_positive'
+                                  ? 'Wrong target'
+                                  : 'No target action'}
+                            </p>
+                            <p className="wp-message">
+                              Expected: {step.expectedTruthId ?? '—'} · Actual:{' '}
+                              {step.resolvedTruthId ?? '—'}
+                            </p>
+                          </div>
+                        )}
+
+                        {step.healingAttempted && (
+                          <div
+                            style={{
+                              padding: 8,
+                              background: 'rgba(68,96,116,0.06)',
+                              marginBottom: 8,
+                            }}
+                          >
+                            <p className="wp-label">Self-healing</p>
+                            <p className="wp-value">
+                              {step.healingOutcome === 'autonomous_repair'
+                                ? 'Automatic repair selected'
+                                : step.healingOutcome === 'needs_manual_intervention'
+                                  ? 'Manual review required — this step was not executed'
+                                  : 'No confident recovery found'}
+                            </p>
+                            <p className="wp-message">
+                              Best score: {step.healedScore?.toFixed(4) ?? '—'} ·
+                              Margin: {step.ambiguityMargin?.toFixed(4) ?? '—'} ·
+                              Healing: {step.healingLatencyMs?.toFixed(2) ?? '—'}ms
+                            </p>
+                            {(step.topCandidates ?? []).map((candidate, index) => (
+                              <p className="wp-message" key={candidate.index}>
+                                {index + 1}. {candidate.accessibleName || '(unnamed)'} (
+                                {candidate.tagName}) — {candidate.score.toFixed(4)}
+                              </p>
+                            ))}
+                          </div>
+                        )}
+
                         {step.resolvedLocator && (
                           <div style={{ marginBottom: 4 }}>
                             <p className="wp-label">Resolved locator</p>
-                            <p className="wp-value" style={{ fontFamily: 'monospace', fontSize: 11 }}>
-                              {step.resolvedLocator.kind}: {JSON.stringify(step.resolvedLocator).slice(0, 80)}
+                            <p
+                              className="wp-value"
+                              style={{ fontFamily: 'monospace', fontSize: 11 }}
+                            >
+                              {step.resolvedLocator.kind}:{' '}
+                              {JSON.stringify(step.resolvedLocator).slice(0, 80)}
                             </p>
                           </div>
                         )}
@@ -321,19 +405,39 @@ export function RunDetailView() {
                               padding: 6,
                               borderRadius: 4,
                               background: 'rgba(138,28,38,0.06)',
-                              marginBottom: 4
+                              marginBottom: 4,
                             }}
                           >
-                            <p style={{ margin: 0, fontWeight: 600, color: '#8a1c26', fontSize: 12 }}>
+                            <p
+                              style={{
+                                margin: 0,
+                                fontWeight: 600,
+                                color: '#8a1c26',
+                                fontSize: 12,
+                              }}
+                            >
                               {failure.label}
                             </p>
                             {step.errorMessage && (
-                              <p style={{ margin: '2px 0 0', color: '#8a1c26', fontSize: 11 }}>
+                              <p
+                                style={{
+                                  margin: '2px 0 0',
+                                  color: '#8a1c26',
+                                  fontSize: 11,
+                                }}
+                              >
                                 {step.errorMessage}
                               </p>
                             )}
                             {failure.suggestion && (
-                              <p style={{ margin: '2px 0 0', color: '#446074', fontSize: 11, fontStyle: 'italic' }}>
+                              <p
+                                style={{
+                                  margin: '2px 0 0',
+                                  color: '#446074',
+                                  fontSize: 11,
+                                  fontStyle: 'italic',
+                                }}
+                              >
                                 {failure.suggestion}
                               </p>
                             )}
@@ -341,27 +445,48 @@ export function RunDetailView() {
                         )}
 
                         {/* Debug metadata */}
-                        {step.debug && (step.debug.notes.length > 0 || step.debug.tags.length > 0) && (
-                          <details style={{ fontSize: 11, color: '#687582', marginBottom: 4 }}>
-                            <summary style={{ cursor: 'pointer' }}>Debug info</summary>
-                            {step.debug.confidence != null && (
-                              <p style={{ margin: '2px 0' }}>Confidence: {(step.debug.confidence * 100).toFixed(0)}%</p>
-                            )}
-                            {step.debug.notes.length > 0 && (
-                              <p style={{ margin: '2px 0' }}>Notes: {step.debug.notes.join(', ')}</p>
-                            )}
-                            {step.debug.tags.length > 0 && (
-                              <p style={{ margin: '2px 0' }}>Tags: {step.debug.tags.join(', ')}</p>
-                            )}
-                          </details>
-                        )}
+                        {step.debug &&
+                          (step.debug.notes.length > 0 ||
+                            step.debug.tags.length > 0) && (
+                            <details
+                              style={{
+                                fontSize: 11,
+                                color: '#687582',
+                                marginBottom: 4,
+                              }}
+                            >
+                              <summary style={{ cursor: 'pointer' }}>
+                                Debug info
+                              </summary>
+                              {step.debug.confidence != null && (
+                                <p style={{ margin: '2px 0' }}>
+                                  Confidence: {(step.debug.confidence * 100).toFixed(0)}
+                                  %
+                                </p>
+                              )}
+                              {step.debug.notes.length > 0 && (
+                                <p style={{ margin: '2px 0' }}>
+                                  Notes: {step.debug.notes.join(', ')}
+                                </p>
+                              )}
+                              {step.debug.tags.length > 0 && (
+                                <p style={{ margin: '2px 0' }}>
+                                  Tags: {step.debug.tags.join(', ')}
+                                </p>
+                              )}
+                            </details>
+                          )}
 
                         {/* Step artifacts */}
                         {arts.length > 0 && (
                           <div style={{ marginTop: 4 }}>
                             <p className="wp-label">Artifacts</p>
                             {arts.map((a) => (
-                              <p key={a.id} className="wp-message" style={{ fontSize: 11 }}>
+                              <p
+                                key={a.id}
+                                className="wp-message"
+                                style={{ fontSize: 11 }}
+                              >
                                 {a.kind}: {a.path}
                               </p>
                             ))}
@@ -380,9 +505,19 @@ export function RunDetailView() {
             <section className="wp-card">
               <p className="wp-label">All artifacts ({run.artifacts.length})</p>
               {run.artifacts.map((a) => (
-                <div key={a.id} style={{ display: 'flex', gap: 8, fontSize: 12, padding: '3px 0' }}>
+                <div
+                  key={a.id}
+                  style={{ display: 'flex', gap: 8, fontSize: 12, padding: '3px 0' }}
+                >
                   <span style={{ fontWeight: 600, minWidth: 70 }}>{a.kind}</span>
-                  <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#446074', flex: 1 }}>
+                  <span
+                    style={{
+                      fontFamily: 'monospace',
+                      fontSize: 11,
+                      color: '#446074',
+                      flex: 1,
+                    }}
+                  >
                     {a.path}
                   </span>
                   <span style={{ fontSize: 11, color: '#687582' }}>

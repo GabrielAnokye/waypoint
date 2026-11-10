@@ -34,6 +34,7 @@ import {
   type BrowserLauncher,
 } from './core/executor.js';
 import { buildRunGraph } from './core/persist.js';
+import { prepareReplayWorkflow } from './core/replay-options.js';
 import { RunRegistry } from './core/run-registry.js';
 import { AttachedBrowserError } from './core/debug-browser.js';
 import type { RunnerEnv } from './env.js';
@@ -184,9 +185,9 @@ export function buildRunnerServer(
     if (!parsed.success) {
       return reply.code(400).send({ error: parsed.error.flatten() });
     }
-    const workflow: Workflow | null =
+    const savedWorkflow: Workflow | null =
       repository.getLatestWorkflowDefinition(workflowId);
-    if (!workflow) {
+    if (!savedWorkflow) {
       return reply.code(404).send({ error: 'workflow_not_found' });
     }
     const versionRows = repository.listWorkflowVersions(workflowId);
@@ -195,6 +196,14 @@ export function buildRunnerServer(
       return reply.code(404).send({ error: 'workflow_version_not_found' });
     }
 
+    let workflow: Workflow;
+    try {
+      workflow = prepareReplayWorkflow(savedWorkflow, parsed.data);
+    } catch (error) {
+      if (error instanceof AttachedBrowserError)
+        return reply.code(409).send({ error: error.code, message: error.message });
+      throw error;
+    }
     const runLauncher = resolveLauncher(parsed.data.engine);
     if (!runLauncher) {
       return reply.code(409).send({
@@ -222,6 +231,9 @@ export function buildRunnerServer(
 
     // Isolated runs start fresh; attached runs preflight the exact existing tab
     // and preserve its state, with a reload only when explicitly requested.
+    const recordedFirstGoto = savedWorkflow.steps.find(
+      (s) => s.enabled && s.type === 'goto'
+    );
     const firstGoto = workflow.steps.find((s) => s.enabled && s.type === 'goto');
     try {
       await runLauncher.resetForRun?.({
@@ -282,6 +294,14 @@ export function buildRunnerServer(
             ...executionConditions,
             researchEligible: parsed.data.engine !== 'attached',
             healingEnabled: parsed.data.healingEnabled ?? false,
+            ...(parsed.data.useSelectedPage && parsed.data.attachedTarget
+              ? {
+                  useSelectedPage: true,
+                  recordedStartUrl:
+                    recordedFirstGoto?.type === 'goto' ? recordedFirstGoto.url : null,
+                  replayStartUrl: parsed.data.attachedTarget.url,
+                }
+              : {}),
           },
         });
         repository.saveRunGraph(graph);
