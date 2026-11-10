@@ -314,3 +314,41 @@ describe('Mutation Engine Mutators', () => {
     });
   });
 });
+
+// Include anchors inside srcdoc and script templates (177 declarations total).
+function declarations(html: string): string[] {
+  const decoded = html.replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'");
+  return [...decoded.matchAll(/data-truth-id="([^"]+)"/g)].map(m => m[1]!).sort();
+}
+describe('six-class corpus audit', () => {
+  it('preserves all 177 declarations across every condition and both variants', async () => {
+    const { MUTATION_TYPES, applyFixtureVariant } = await import('./mutators.js');
+    let total = 0;
+    for (const file of fs.readdirSync(resolveFixturesDir()).filter(f => f.endsWith('.html'))) {
+      const html = fs.readFileSync(path.join(resolveFixturesDir(), file), 'utf8');
+      const truth = declarations(html);
+      total += truth.length;
+      for (const variant of ['labeled', 'unlabeled']) {
+        const base = applyFixtureVariant(html, variant);
+        expect(declarations(base), `${file}/${variant}`).toEqual(truth);
+        for (const mutation of MUTATION_TYPES) {
+          expect(declarations(applyMutations(base, [mutation], { seed: 'audit' })), `${file}/${variant}/${mutation}`).toEqual(truth);
+        }
+      }
+    }
+    expect(total).toBe(177);
+  });
+  it('uses CSS-only layout displacement, changes copy, and degrades semantics', async () => {
+    const { mutateLayout, mutateContent, mutateSemantic, applyFixtureVariant } = await import('./mutators.js');
+    const html = '<html><head></head><body><label for="x">Email</label><input id="x" aria-label="Email" data-testid="x" placeholder="Search"/><button data-truth-id="b">Submit</button></body></html>';
+    expect(mutateLayout(html, { seed: 'a' })).toMatch(/top: (\d+)px/);
+    expect(mutateContent(html)).toContain('Filter records');
+    expect(mutateContent(html)).toContain('Continue');
+    const semantic = mutateSemantic(html);
+    expect(semantic).not.toContain('<button');
+    expect(semantic).not.toContain('aria-label');
+    expect(semantic).not.toContain('<label');
+    expect(semantic).toContain('btn-lookalike');
+    expect(applyFixtureVariant(html, 'unlabeled')).not.toContain('data-testid');
+  });
+});

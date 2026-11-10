@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto';
-import { parse, serialize, type DefaultTreeAdapterMap } from 'parse5';
+import { parse, parseFragment, serialize, type DefaultTreeAdapterMap } from 'parse5';
 
-export type MutationType = 'cosmetic' | 'attribute' | 'structural';
+export const MUTATION_TYPES = ['cosmetic', 'attribute', 'structural', 'layout', 'content', 'semantic'] as const;
+export type MutationType = typeof MUTATION_TYPES[number];
 
 export interface MutatorOptions {
   seed?: string;
@@ -47,7 +48,7 @@ function traverse(node: Node, visitor: (el: Element) => void): void {
  */
 export function mutateCosmetic(html: string, options: MutatorOptions = {}): string {
   const seed = options.seed ?? 'cosmetic';
-  const ast = parse(html);
+  const ast = /<html[\s>]/i.test(html) ? parse(html) : parseFragment(html);
   const classMap = new Map<string, string>();
 
   // 1. Discover all class names
@@ -106,7 +107,7 @@ export function mutateCosmetic(html: string, options: MutatorOptions = {}): stri
  */
 export function mutateAttribute(html: string, options: MutatorOptions = {}): string {
   const seed = options.seed ?? 'attribute';
-  const ast = parse(html);
+  const ast = /<html[\s>]/i.test(html) ? parse(html) : parseFragment(html);
   const idMap = new Map<string, string>();
 
   // 1. Discover all non-truth IDs
@@ -167,7 +168,7 @@ export function mutateAttribute(html: string, options: MutatorOptions = {}): str
  */
 export function mutateStructural(html: string, options: MutatorOptions = {}): string {
   const seed = options.seed ?? 'structural';
-  const ast = parse(html);
+  const ast = /<html[\s>]/i.test(html) ? parse(html) : parseFragment(html);
 
   const WRAPPABLE_TAGS = new Set([
     'button',
@@ -176,10 +177,7 @@ export function mutateStructural(html: string, options: MutatorOptions = {}): st
     'textarea',
     'fieldset',
     'form',
-    'table',
-    'tr',
-    'td',
-    'th'
+    'textarea'
   ]);
 
   // Traverse and collect elements to wrap
@@ -225,27 +223,100 @@ export function mutateStructural(html: string, options: MutatorOptions = {}): st
   return serialize(ast);
 }
 
-/**
- * Applies a sequence of requested DOM mutations to the fixture HTML.
- */
-export function applyMutations(
-  html: string,
-  mutations: MutationType[],
-  options: MutatorOptions = {}
-): string {
-  let result = html;
-  for (const mut of mutations) {
-    switch (mut) {
-      case 'cosmetic':
-        result = mutateCosmetic(result, options);
-        break;
-      case 'attribute':
-        result = mutateAttribute(result, options);
-        break;
-      case 'structural':
-        result = mutateStructural(result, options);
-        break;
+/** CSS-only translation: preserves tag hierarchy, names, and accessibility. */
+export function mutateLayout(html: string, options: MutatorOptions = {}): string {
+  const offset = 80 + (parseInt(hashValue('layout', options.seed), 16) % 171);
+  return html.replace(/<head[^>]*>/i, match => `${match}<style data-mutation="layout">body { position: relative; top: ${offset}px !important; } </style>`);
+}
+
+const COPY: Record<string, string> = {
+  'sign in': 'Log in to Account', 'submit': 'Continue', 'delete': 'Remove Item',
+  'search': 'Filter records', 'save': 'Apply Changes', 'next': 'Proceed',
+  'confirm': 'Accept', 'cancel': 'Dismiss', 'email': 'Email address',
+  'name': 'Full name', 'load': 'Fetch', 'open': 'Show', 'edit': 'Update'
+};
+function changeCopy(value: string): string {
+  return value.replace(/sign in|submit|delete|search|save|next|confirm|cancel|email|name|load|open|edit/gi,
+    token => COPY[token.toLowerCase()] ?? token);
+}
+
+export function mutateContent(html: string): string {
+  const ast = /<html[\s>]/i.test(html) ? parse(html) : parseFragment(html);
+  traverse(ast, el => {
+    for (const attr of el.attrs) {
+      if (['placeholder', 'aria-label', 'title'].includes(attr.name) ||
+          (attr.name === 'value' && el.tagName === 'input' && el.attrs.some(a => a.name === 'type' && ['button', 'submit'].includes(a.value)))) {
+        attr.value = changeCopy(attr.value);
+      }
     }
-  }
+    if (!['script', 'style'].includes(el.tagName)) {
+      for (const node of el.childNodes) if (isTextNode(node)) node.value = changeCopy(node.value);
+    }
+  });
+  return serialize(ast);
+}
+
+export function mutateSemantic(html: string): string {
+  const ast = /<html[\s>]/i.test(html) ? parse(html) : parseFragment(html);
+  traverse(ast, el => {
+    el.attrs = el.attrs.filter(a => !['aria-label', 'aria-labelledby', 'role'].includes(a.name));
+    if (el.tagName === 'label') {
+      el.tagName = el.nodeName = 'span';
+      el.attrs = el.attrs.filter(a => a.name !== 'for');
+    }
+    if (el.tagName === 'button') {
+      el.tagName = el.nodeName = 'div';
+      el.attrs.push({ name: 'tabindex', value: '0' });
+      const cls = el.attrs.find(a => a.name === 'class');
+      if (cls) cls.value += ' btn-lookalike';
+      else el.attrs.push({ name: 'class', value: 'btn-lookalike' });
+      // Match native button defaults and preserve inline click handlers. Submit
+      // controls still submit their form; no semantic role is added back.
+      el.attrs.push({ name: 'style', value: 'display:inline-block;box-sizing:border-box;font:400 13.3333px Arial;padding:8px 16px;border:2px outset ButtonBorder;background:ButtonFace;color:ButtonText;cursor:pointer;' + (el.attrs.find(a => a.name === 'style')?.value ?? '') });
+      const styles = el.attrs.filter(a => a.name === 'style');
+      el.attrs = el.attrs.filter(a => a.name !== 'style');
+      el.attrs.push(styles[styles.length - 1]!);
+      const click = el.attrs.find(a => a.name === 'onclick');
+      if (!click && el.attrs.some(a => a.name === 'type' && a.value === 'submit'))
+        el.attrs.push({ name: 'onclick', value: "this.closest('form')?.requestSubmit()" });
+    }
+  });
+  return serialize(ast).replace(/button(?=\s*[{:.,>])/g, '.btn-lookalike');
+}
+
+/** Remove redundant test contracts and explicit labels without adding new ones. */
+export function applyUnlabeledVariant(html: string): string {
+  const ast = /<html[\s>]/i.test(html) ? parse(html) : parseFragment(html);
+  traverse(ast, el => { el.attrs = el.attrs.filter(a => !['data-testid', 'aria-label', 'aria-labelledby'].includes(a.name)); });
+  return serialize(ast);
+}
+
+// Transform srcdoc documents and fixture-owned HTML template literals as well
+// as light DOM. Script code itself is never treated as visible copy.
+function embedded(html: string, transform: (source: string) => string): string {
+  const ast = /<html[\s>]/i.test(html) ? parse(html) : parseFragment(html);
+  traverse(ast, el => {
+    const srcdoc = el.attrs.find(a => a.name === 'srcdoc');
+    if (srcdoc) srcdoc.value = embedded(srcdoc.value, transform);
+    if (el.tagName === 'script') for (const child of el.childNodes) if (isTextNode(child)) {
+      child.value = child.value.replace(/`([^`]*<[a-z][^`]*)`/gi,
+        (_match, markup: string) => '`' + transform(markup) + '`');
+    }
+  });
+  return transform(serialize(ast));
+}
+
+export function applyFixtureVariant(html: string, variant?: string): string {
+  return variant === 'unlabeled' ? embedded(html, applyUnlabeledVariant) : html;
+}
+
+/** Applies mutations to static DOM, same-origin srcdoc, and generated markup. */
+export function applyMutations(html: string, mutations: MutationType[], options: MutatorOptions = {}): string {
+  const mutators: Record<MutationType, (source: string, options: MutatorOptions) => string> = {
+    cosmetic: mutateCosmetic, attribute: mutateAttribute, structural: mutateStructural,
+    layout: mutateLayout, content: mutateContent, semantic: mutateSemantic
+  };
+  let result = html;
+  for (const mutation of mutations) result = embedded(result, source => mutators[mutation](source, options));
   return result;
 }

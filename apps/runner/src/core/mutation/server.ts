@@ -2,7 +2,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { applyMutations, type MutationType } from './mutators.js';
+import { applyMutations, applyFixtureVariant, MUTATION_TYPES, type MutationType } from './mutators.js';
 
 export interface MutationServerOptions {
   port?: number;
@@ -65,7 +65,7 @@ export function createMutationServer(options: MutationServerOptions = {}): Mutat
       }
 
       const seed = urlObj.searchParams.get('seed') ?? defaultSeed;
-      const validTypes = new Set<string>(['cosmetic', 'attribute', 'structural']);
+      const validTypes = new Set<string>(MUTATION_TYPES);
       const mutations: MutationType[] = rawMutations
         .map((m) => m.trim().toLowerCase())
         .filter((m): m is MutationType => validTypes.has(m));
@@ -119,7 +119,8 @@ export function createMutationServer(options: MutationServerOptions = {}): Mutat
         <a class="cosmetic" href="/${file}?mutation=cosmetic">Cosmetic</a>
         <a class="attribute" href="/${file}?mutation=attribute">Attribute</a>
         <a class="structural" href="/${file}?mutation=structural">Structural</a>
-        <a class="all" href="/${file}?mutation=cosmetic,attribute,structural">All Combined</a>
+        ${['layout', 'content', 'semantic'].map(m => `<a class="raw" href="/${file}?mutation=${m}">${m}</a>`).join('')}
+        <a class="raw" href="/${file}?variant=unlabeled">Poorly labeled</a>
       </div>
     </li>`
       )
@@ -164,15 +165,16 @@ export function createMutationServer(options: MutationServerOptions = {}): Mutat
 
       if (ext === '.html' || ext === '.htm') {
         const originalHtml = fs.readFileSync(targetPath, 'utf-8');
-        let processedHtml = originalHtml;
+        let processedHtml = applyFixtureVariant(originalHtml, urlObj.searchParams.get('variant') ?? undefined);
 
         if (mutations.length > 0) {
-          processedHtml = applyMutations(originalHtml, mutations, { seed });
+          processedHtml = applyMutations(processedHtml, mutations, { seed });
         }
 
         res.statusCode = 200;
         res.setHeader('Content-Type', contentType);
         res.setHeader('x-mutations-applied', mutations.join(','));
+        res.setHeader('x-fixture-variant', urlObj.searchParams.get('variant') === 'unlabeled' ? 'unlabeled' : 'labeled');
         res.end(processedHtml);
       } else {
         const fileContent = fs.readFileSync(targetPath);
