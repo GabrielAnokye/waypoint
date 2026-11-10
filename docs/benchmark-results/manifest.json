@@ -1,0 +1,38 @@
+{
+  "startedAt": "2026-11-10T14:27:15.684Z",
+  "finishedAt": "2026-11-10T14:37:13.958Z",
+  "repetitions": 5,
+  "workers": 4,
+  "stepsPerPass": 16800,
+  "totalMainEvaluations": 33600,
+  "sensitivityEvaluations": 840,
+  "browserVersion": "153.0.8010.12",
+  "nodeVersion": "v25.9.0",
+  "viewport": {
+    "width": 1280,
+    "height": 1000
+  },
+  "sourceCommit": "0ab0002112c443416d299d4399fe171acd5e7d44",
+  "workingTreeDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "suiteHash": "a6fc103012ba5f8e18bb7bac99c16cc0bcb5c5a5038d676ff4337581b0829289",
+  "mutationSeeds": [
+    "waypoint-repetition-1",
+    "waypoint-repetition-2",
+    "waypoint-repetition-3",
+    "waypoint-repetition-4",
+    "waypoint-repetition-5"
+  ],
+  "methodology": "Independent action trials: fresh navigation and fixed prerequisite state per recorded step; fresh context per workflow/family/condition/repetition/pass. No truth-based healing trigger. Threshold sweep forces missing locators on three Delete targets and executes autonomous decisions.",
+  "hashes": {
+    "BENCHMARK-REPORT.md": "992f8a45ff0352c97ec4121c4cbc67d19b44caafec50949020715692da88604a",
+    "baseline-degradation.csv": "8bb5b502eca3614ce3937d28aff3767a2a0ce03912f88d1ad02509a1c93b457d",
+    "baseline-degradation.json": "9deee0683e23e02e85d21db44f428e4d534570e05fb0912e679a91e15ea2e526",
+    "baseline-raw.json": "6253546e7f8eb25d7fa423e4da4c903931c7bcf3bc73d8de503a7915c47f2212",
+    "canonical-workflows.json": "ecbb7e4d27f46dde23fd9ad5f7b11b2cd48d3c5bf1dfdf154c33aa23454a65bc",
+    "self-healing-raw.json": "a821edbf67c6f0164b148038e483531e0a724eb03f1500131b91f744057bc754",
+    "self-healing-results.csv": "8a061dab2361fe140dd6f2bb03ca92a80bd5a1cd149e4425d83de20230c92746",
+    "self-healing-results.json": "f245367d471b5dfa08939ce4123d396436f22822b07c1191ebf581c364d25b89",
+    "threshold-raw.json": "f7f2bbdea7456a1c33927470bfbcf778c42051de22b198ef0263b8bbdc9b410e",
+    "threshold-sensitivity.csv": "3b29fee5faae80f89658762aaec3a53861593a0e6b2782eeade831b5bcb9848c"
+  }
+}

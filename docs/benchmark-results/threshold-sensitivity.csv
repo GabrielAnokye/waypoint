@@ -1,0 +1,5 @@
+"policy","scoreThreshold","marginThreshold","family","condition","n","attempted","correct","wrong","manual","unrecovered","recoveryPct","wrongPct","manualPct","unrecoveredPct","meanMs","p95Ms","finalTpPct","finalFpPct"
+"greedy_top1","0","0","forced-broken-delete","all","210","210","190","20","0","0","90.48","9.52","0","0","36.888","51.247","90.48","9.52"
+"permissive_060_005","0.6","0.05","forced-broken-delete","all","210","210","0","0","210","0","0","0","100","0","39.293","53.89","0","0"
+"chosen_075_015","0.75","0.15","forced-broken-delete","all","210","210","0","0","210","0","0","0","100","0","40.054","55.066","0","0"
+"conservative_085_020","0.85","0.2","forced-broken-delete","all","210","210","0","0","210","0","0","0","100","0","45.913","61.72","0","0"
