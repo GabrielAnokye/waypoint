@@ -1,0 +1,4 @@
+
+> waypoint@ lint /Users/gabrielanokye/Senior Seminar/waypoint
+> eslint .
+

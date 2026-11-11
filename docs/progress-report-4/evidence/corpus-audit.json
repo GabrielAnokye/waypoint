@@ -1,0 +1,45 @@
+{
+  "files": 8,
+  "variants": 2,
+  "mutationClasses": 6,
+  "pageStates": 16,
+  "transformedDocumentChecks": 112,
+  "sourceTruthDeclarations": 177,
+  "anchorComparisons": 2478,
+  "preserved": 2478,
+  "changed": 0,
+  "rows": [
+    {
+      "fixture": "ambiguous.html",
+      "declarations": 23
+    },
+    {
+      "fixture": "delayed.html",
+      "declarations": 36
+    },
+    {
+      "fixture": "dropdowns.html",
+      "declarations": 12
+    },
+    {
+      "fixture": "forms.html",
+      "declarations": 19
+    },
+    {
+      "fixture": "iframe.html",
+      "declarations": 19
+    },
+    {
+      "fixture": "shadow-dom.html",
+      "declarations": 19
+    },
+    {
+      "fixture": "spa.html",
+      "declarations": 32
+    },
+    {
+      "fixture": "tables.html",
+      "declarations": 17
+    }
+  ]
+}

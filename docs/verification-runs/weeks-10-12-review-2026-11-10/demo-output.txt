@@ -1,0 +1,336 @@
+{
+  "fixture": "forms.html",
+  "truth": "login-submit",
+  "family": "testContract",
+  "condition": "attribute",
+  "expectedTruthId": "login-submit",
+  "healingOutcome": "autonomous_repair",
+  "S1": 1,
+  "S2": 0.43675,
+  "delta": 0.56325,
+  "resolvedTruthId": "login-submit",
+  "topCandidates": [
+    {
+      "index": 3,
+      "features": {
+        "semantic": 1,
+        "text": 1,
+        "attributes": 1,
+        "structural": 1,
+        "position": 1
+      },
+      "score": 1,
+      "tagName": "button",
+      "accessibleName": "Sign in"
+    },
+    {
+      "index": 12,
+      "features": {
+        "semantic": 0.43,
+        "text": 0.125,
+        "attributes": 1,
+        "structural": 0.55,
+        "position": 0
+      },
+      "score": 0.43675,
+      "tagName": "button",
+      "accessibleName": "Register"
+    },
+    {
+      "index": 4,
+      "features": {
+        "semantic": 0,
+        "text": 0.125,
+        "attributes": 0,
+        "structural": 0.6,
+        "position": 0.4462288164939958
+      },
+      "score": 0.1358728816493996,
+      "tagName": "input",
+      "accessibleName": "Full Name"
+    }
+  ],
+  "hits": [
+    {
+      "truthId": "login-submit",
+      "trusted": true
+    }
+  ]
+}
+{
+  "fixture": "ambiguous.html",
+  "truth": "delete-alpha",
+  "family": "intent",
+  "condition": "none",
+  "expectedTruthId": "delete-alpha",
+  "healingOutcome": "needs_manual_intervention",
+  "S1": 1,
+  "S2": 0.9846,
+  "delta": 0.01539999999999997,
+  "resolvedTruthId": null,
+  "topCandidates": [
+    {
+      "index": 0,
+      "features": {
+        "semantic": 1,
+        "text": 1,
+        "attributes": 1,
+        "structural": 1,
+        "position": 1
+      },
+      "score": 1,
+      "tagName": "button",
+      "accessibleName": "Delete"
+    },
+    {
+      "index": 1,
+      "features": {
+        "semantic": 1,
+        "text": 1,
+        "attributes": 1,
+        "structural": 1,
+        "position": 0.846
+      },
+      "score": 0.9846,
+      "tagName": "button",
+      "accessibleName": "Delete"
+    },
+    {
+      "index": 2,
+      "features": {
+        "semantic": 1,
+        "text": 1,
+        "attributes": 1,
+        "structural": 1,
+        "position": 0.692
+      },
+      "score": 0.9692000000000001,
+      "tagName": "button",
+      "accessibleName": "Delete"
+    }
+  ],
+  "hits": []
+}
+{
+  "fixture": "ambiguous.html",
+  "truth": "delete-beta",
+  "family": "intent",
+  "condition": "none",
+  "expectedTruthId": "delete-beta",
+  "healingOutcome": "needs_manual_intervention",
+  "S1": 1,
+  "S2": 0.9846,
+  "delta": 0.01539999999999997,
+  "resolvedTruthId": null,
+  "topCandidates": [
+    {
+      "index": 1,
+      "features": {
+        "semantic": 1,
+        "text": 1,
+        "attributes": 1,
+        "structural": 1,
+        "position": 1
+      },
+      "score": 1,
+      "tagName": "button",
+      "accessibleName": "Delete"
+    },
+    {
+      "index": 0,
+      "features": {
+        "semantic": 1,
+        "text": 1,
+        "attributes": 1,
+        "structural": 1,
+        "position": 0.846
+      },
+      "score": 0.9846,
+      "tagName": "button",
+      "accessibleName": "Delete"
+    },
+    {
+      "index": 2,
+      "features": {
+        "semantic": 1,
+        "text": 1,
+        "attributes": 1,
+        "structural": 1,
+        "position": 0.846
+      },
+      "score": 0.9846,
+      "tagName": "button",
+      "accessibleName": "Delete"
+    }
+  ],
+  "hits": []
+}
+{
+  "fixture": "ambiguous.html",
+  "truth": "delete-gamma",
+  "family": "intent",
+  "condition": "none",
+  "expectedTruthId": "delete-gamma",
+  "healingOutcome": "needs_manual_intervention",
+  "S1": 1,
+  "S2": 0.9846,
+  "delta": 0.01539999999999997,
+  "resolvedTruthId": null,
+  "topCandidates": [
+    {
+      "index": 2,
+      "features": {
+        "semantic": 1,
+        "text": 1,
+        "attributes": 1,
+        "structural": 1,
+        "position": 1
+      },
+      "score": 1,
+      "tagName": "button",
+      "accessibleName": "Delete"
+    },
+    {
+      "index": 1,
+      "features": {
+        "semantic": 1,
+        "text": 1,
+        "attributes": 1,
+        "structural": 1,
+        "position": 0.846
+      },
+      "score": 0.9846,
+      "tagName": "button",
+      "accessibleName": "Delete"
+    },
+    {
+      "index": 0,
+      "features": {
+        "semantic": 1,
+        "text": 1,
+        "attributes": 1,
+        "structural": 1,
+        "position": 0.692
+      },
+      "score": 0.9692000000000001,
+      "tagName": "button",
+      "accessibleName": "Delete"
+    }
+  ],
+  "hits": []
+}
+{
+  "fixture": "ambiguous.html",
+  "truth": "delete-beta",
+  "family": "structural",
+  "condition": "layout",
+  "greedy": true,
+  "expectedTruthId": "delete-beta",
+  "healingOutcome": "autonomous_repair",
+  "S1": 0.9936,
+  "S2": 0.9782000000000001,
+  "delta": 0.01539999999999997,
+  "resolvedTruthId": "delete-alpha",
+  "topCandidates": [
+    {
+      "index": 0,
+      "features": {
+        "semantic": 1,
+        "text": 1,
+        "attributes": 1,
+        "structural": 1,
+        "position": 0.9359999999999999
+      },
+      "score": 0.9936,
+      "tagName": "button",
+      "accessibleName": "Delete"
+    },
+    {
+      "index": 1,
+      "features": {
+        "semantic": 1,
+        "text": 1,
+        "attributes": 1,
+        "structural": 1,
+        "position": 0.782
+      },
+      "score": 0.9782000000000001,
+      "tagName": "button",
+      "accessibleName": "Delete"
+    },
+    {
+      "index": 2,
+      "features": {
+        "semantic": 1,
+        "text": 1,
+        "attributes": 1,
+        "structural": 1,
+        "position": 0.628
+      },
+      "score": 0.9628,
+      "tagName": "button",
+      "accessibleName": "Delete"
+    }
+  ],
+  "hits": [
+    {
+      "truthId": "delete-alpha",
+      "trusted": true
+    }
+  ]
+}
+{
+  "fixture": "ambiguous.html",
+  "truth": "delete-beta",
+  "family": "structural",
+  "condition": "layout",
+  "greedy": false,
+  "expectedTruthId": "delete-beta",
+  "healingOutcome": "needs_manual_intervention",
+  "S1": 0.9936,
+  "S2": 0.9782000000000001,
+  "delta": 0.01539999999999997,
+  "resolvedTruthId": null,
+  "topCandidates": [
+    {
+      "index": 0,
+      "features": {
+        "semantic": 1,
+        "text": 1,
+        "attributes": 1,
+        "structural": 1,
+        "position": 0.9359999999999999
+      },
+      "score": 0.9936,
+      "tagName": "button",
+      "accessibleName": "Delete"
+    },
+    {
+      "index": 1,
+      "features": {
+        "semantic": 1,
+        "text": 1,
+        "attributes": 1,
+        "structural": 1,
+        "position": 0.782
+      },
+      "score": 0.9782000000000001,
+      "tagName": "button",
+      "accessibleName": "Delete"
+    },
+    {
+      "index": 2,
+      "features": {
+        "semantic": 1,
+        "text": 1,
+        "attributes": 1,
+        "structural": 1,
+        "position": 0.628
+      },
+      "score": 0.9628,
+      "tagName": "button",
+      "accessibleName": "Delete"
+    }
+  ],
+  "hits": []
+}

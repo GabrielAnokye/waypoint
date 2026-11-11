@@ -1,0 +1,35 @@
+
+> waypoint@ build /Users/gabrielanokye/Senior Seminar/waypoint
+> corepack pnpm -r build
+
+Scope: 9 of 10 workspace projects
+packages/logger build$ tsc -b
+packages/shared-types build$ tsc -b
+packages/ui build$ tsc -b
+packages/logger build: Done
+packages/ui build: Done
+packages/shared-types build: Done
+apps/extension build$ vite build && node ./scripts/write-manifest.mjs
+packages/bridge-protocol build$ tsc -b
+packages/compiler build$ tsc -b
+packages/db build$ tsc -b
+packages/db build: Done
+packages/compiler build: Done
+packages/bridge-protocol build: Done
+apps/extension build: vite v5.4.21 building for production...
+apps/extension build: transforming...
+apps/extension build: ✓ 64 modules transformed.
+apps/extension build: rendering chunks...
+apps/extension build: computing gzip size...
+apps/extension build: dist/sidepanel.html                   0.42 kB │ gzip:  0.28 kB
+apps/extension build: dist/assets/sidepanel-CsxQHM_c.css    2.33 kB │ gzip:  0.99 kB
+apps/extension build: dist/scripts/content-script.js        0.27 kB │ gzip:  0.20 kB │ map:   0.75 kB
+apps/extension build: dist/scripts/service-worker.js        7.85 kB │ gzip:  3.03 kB │ map:  28.07 kB
+apps/extension build: dist/scripts/content-recorder.js     23.39 kB │ gzip:  7.89 kB │ map:  98.29 kB
+apps/extension build: dist/assets/sidepanel-BLdzLzJj.js   191.79 kB │ gzip: 59.05 kB │ map: 512.31 kB
+apps/extension build: ✓ built in 454ms
+apps/extension build: Done
+apps/runner build$ tsc -b
+apps/bridge-host build$ tsc -b
+apps/bridge-host build: Done
+apps/runner build: Done

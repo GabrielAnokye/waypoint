@@ -1,0 +1,8 @@
+{
+  "originalWorkflowId": "rec_mwb3un4q_occ3sd",
+  "recordingCopyId": "wf_01023783-0ba6-4190-973b-431edb6082d6",
+  "autoRepairWorkflowId": "rec_live_repair_1037f9e8",
+  "recordingMutationUrl": "http://127.0.0.1:8080/ambiguous.html?mutation=layout&seed=demo",
+  "autoRepairUrl": "http://127.0.0.1:8080/forms.html?mutation=attribute&seed=demo",
+  "manualHaltUrl": "http://127.0.0.1:8080/ambiguous.html?mutation=cosmetic,structural&seed=demo"
+}

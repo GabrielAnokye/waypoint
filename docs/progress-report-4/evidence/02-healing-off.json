@@ -1,0 +1,117 @@
+{
+  "hits": [],
+  "graph": {
+    "run": {
+      "id": "run_4f0102b5-b396-4b81-a359-58bdc3452b6c",
+      "workflowId": "report4-auto",
+      "workflowVersionId": "report4-auto_v1",
+      "workflowVersion": 1,
+      "status": "failed",
+      "triggerSource": "manual",
+      "startedAt": "2026-11-10T23:49:18.767Z",
+      "finishedAt": "2026-11-10T23:49:18.787Z",
+      "errorCode": "locator_not_found",
+      "errorMessage": "locator_not_found: None of the 1 locator(s) uniquely identified an element. Consider rebinding this step to a new element.",
+      "createdAt": "2026-11-10T23:49:18.767Z",
+      "updatedAt": "2026-11-10T23:49:18.787Z",
+      "metadata": {
+        "headless": false,
+        "slowMo": 0,
+        "contextIsolation": "attached",
+        "browserEngine": "cdp",
+        "researchEligible": false,
+        "cdpEndpoint": "http://127.0.0.1:9224",
+        "selectedTabId": 1379044593,
+        "selectedWindowId": 1379044590,
+        "selectedUrl": "http://127.0.0.1:62569/forms.html?mutation=attribute&seed=demo",
+        "selectedDocumentId": "E1A585558CA25FAF76EEDD41BCFB821C",
+        "selectedTargetId": "0AB206075E88054E698E27147AC4EBCF",
+        "healingEnabled": false,
+        "useSelectedPage": true,
+        "recordedStartUrl": "http://127.0.0.1:62569/forms.html",
+        "replayStartUrl": "http://127.0.0.1:62569/forms.html?mutation=attribute&seed=demo"
+      }
+    },
+    "steps": [
+      {
+        "healingAttempted": false,
+        "healingOutcome": null,
+        "healedScore": null,
+        "ambiguityMargin": null,
+        "regeneratedLocator": null,
+        "topCandidates": [],
+        "healingLatencyMs": null,
+        "id": "rsr_463cf1a0-8d50-4410-82ed-fd08e59d91c1",
+        "runId": "run_4f0102b5-b396-4b81-a359-58bdc3452b6c",
+        "stepId": "step_1",
+        "stepType": "goto",
+        "status": "succeeded",
+        "attemptCount": 1,
+        "startedAt": "2026-11-10T23:49:18.767Z",
+        "finishedAt": "2026-11-10T23:49:18.767Z",
+        "durationMs": 0,
+        "artifactIds": [],
+        "debug": {
+          "sourceEventIds": [],
+          "notes": [],
+          "tags": [],
+          "extra": {}
+        }
+      },
+      {
+        "healingAttempted": false,
+        "healingOutcome": null,
+        "healedScore": null,
+        "ambiguityMargin": null,
+        "regeneratedLocator": null,
+        "topCandidates": [],
+        "healingLatencyMs": null,
+        "id": "rsr_8f65b52d-64c2-426c-9dd2-392e402cdd8e",
+        "runId": "run_4f0102b5-b396-4b81-a359-58bdc3452b6c",
+        "stepId": "step_3",
+        "stepType": "waitFor",
+        "status": "failed",
+        "attemptCount": 1,
+        "startedAt": "2026-11-10T23:49:18.767Z",
+        "finishedAt": "2026-11-10T23:49:18.784Z",
+        "durationMs": 17,
+        "truthClassification": "true_negative",
+        "expectedTruthId": "login-submit",
+        "errorCode": "locator_not_found",
+        "errorMessage": "locator_not_found: None of the 1 locator(s) uniquely identified an element. Consider rebinding this step to a new element.",
+        "artifactIds": [],
+        "debug": {
+          "sourceEventIds": [],
+          "notes": [],
+          "tags": [],
+          "extra": {
+            "repairRecord": {
+              "stepId": "step_3",
+              "stepType": "waitFor",
+              "failureCode": "locator_not_found",
+              "attemptedLocators": [
+                {
+                  "kind": "testId",
+                  "testId": "login-submit"
+                }
+              ],
+              "locatorAttempts": [
+                {
+                  "locator": {
+                    "kind": "testId",
+                    "testId": "login-submit"
+                  },
+                  "matchCount": 0
+                }
+              ],
+              "confidence": 0,
+              "suggestion": "None of the 1 locator(s) uniquely identified an element. Consider rebinding this step to a new element.",
+              "timestamp": "2026-11-10T23:49:18.783Z"
+            }
+          }
+        }
+      }
+    ],
+    "artifacts": []
+  }
+}

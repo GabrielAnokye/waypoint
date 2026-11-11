@@ -1,0 +1,338 @@
+{
+  "metadata": {
+    "startedAt": "2026-11-10T18:43:11.267Z",
+    "finishedAt": "2026-11-10T18:55:32.235Z",
+    "repetitions": 5,
+    "workers": 4,
+    "stepsPerPass": 16800,
+    "totalMainEvaluations": 33600,
+    "sensitivityEvaluations": 840,
+    "browserVersion": "153.0.8010.12",
+    "nodeVersion": "v25.9.0",
+    "viewport": {
+      "width": 1280,
+      "height": 1000
+    },
+    "sourceCommit": "86d9c7b72f6f1a2fb3170f7146d9ae743aad33dc",
+    "workingTreeDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "suiteHash": "a6fc103012ba5f8e18bb7bac99c16cc0bcb5c5a5038d676ff4337581b0829289",
+    "mutationSeeds": [
+      "waypoint-repetition-1",
+      "waypoint-repetition-2",
+      "waypoint-repetition-3",
+      "waypoint-repetition-4",
+      "waypoint-repetition-5"
+    ],
+    "methodology": "Independent action trials: fresh navigation and fixed prerequisite state per recorded step; fresh context per workflow/family/condition/repetition/pass. No truth-based healing trigger. Threshold sweep forces missing locators on three Delete targets and executes autonomous decisions."
+  },
+  "rows": [
+    {
+      "family": "coordinate",
+      "condition": "none",
+      "n": 600,
+      "truePositive": 600,
+      "falsePositive": 0,
+      "trueNegative": 0,
+      "tpPct": 100,
+      "fpPct": 0,
+      "tnPct": 0
+    },
+    {
+      "family": "coordinate",
+      "condition": "cosmetic",
+      "n": 600,
+      "truePositive": 600,
+      "falsePositive": 0,
+      "trueNegative": 0,
+      "tpPct": 100,
+      "fpPct": 0,
+      "tnPct": 0
+    },
+    {
+      "family": "coordinate",
+      "condition": "attribute",
+      "n": 600,
+      "truePositive": 600,
+      "falsePositive": 0,
+      "trueNegative": 0,
+      "tpPct": 100,
+      "fpPct": 0,
+      "tnPct": 0
+    },
+    {
+      "family": "coordinate",
+      "condition": "structural",
+      "n": 600,
+      "truePositive": 380,
+      "falsePositive": 40,
+      "trueNegative": 180,
+      "tpPct": 63.33,
+      "fpPct": 6.67,
+      "tnPct": 30
+    },
+    {
+      "family": "coordinate",
+      "condition": "layout",
+      "n": 600,
+      "truePositive": 0,
+      "falsePositive": 86,
+      "trueNegative": 514,
+      "tpPct": 0,
+      "fpPct": 14.33,
+      "tnPct": 85.67
+    },
+    {
+      "family": "coordinate",
+      "condition": "content",
+      "n": 600,
+      "truePositive": 600,
+      "falsePositive": 0,
+      "trueNegative": 0,
+      "tpPct": 100,
+      "fpPct": 0,
+      "tnPct": 0
+    },
+    {
+      "family": "coordinate",
+      "condition": "semantic",
+      "n": 600,
+      "truePositive": 600,
+      "falsePositive": 0,
+      "trueNegative": 0,
+      "tpPct": 100,
+      "fpPct": 0,
+      "tnPct": 0
+    },
+    {
+      "family": "structural",
+      "condition": "none",
+      "n": 600,
+      "truePositive": 600,
+      "falsePositive": 0,
+      "trueNegative": 0,
+      "tpPct": 100,
+      "fpPct": 0,
+      "tnPct": 0
+    },
+    {
+      "family": "structural",
+      "condition": "cosmetic",
+      "n": 600,
+      "truePositive": 600,
+      "falsePositive": 0,
+      "trueNegative": 0,
+      "tpPct": 100,
+      "fpPct": 0,
+      "tnPct": 0
+    },
+    {
+      "family": "structural",
+      "condition": "attribute",
+      "n": 600,
+      "truePositive": 600,
+      "falsePositive": 0,
+      "trueNegative": 0,
+      "tpPct": 100,
+      "fpPct": 0,
+      "tnPct": 0
+    },
+    {
+      "family": "structural",
+      "condition": "structural",
+      "n": 600,
+      "truePositive": 30,
+      "falsePositive": 10,
+      "trueNegative": 560,
+      "tpPct": 5,
+      "fpPct": 1.67,
+      "tnPct": 93.33
+    },
+    {
+      "family": "structural",
+      "condition": "layout",
+      "n": 600,
+      "truePositive": 600,
+      "falsePositive": 0,
+      "trueNegative": 0,
+      "tpPct": 100,
+      "fpPct": 0,
+      "tnPct": 0
+    },
+    {
+      "family": "structural",
+      "condition": "content",
+      "n": 600,
+      "truePositive": 600,
+      "falsePositive": 0,
+      "trueNegative": 0,
+      "tpPct": 100,
+      "fpPct": 0,
+      "tnPct": 0
+    },
+    {
+      "family": "structural",
+      "condition": "semantic",
+      "n": 600,
+      "truePositive": 270,
+      "falsePositive": 0,
+      "trueNegative": 330,
+      "tpPct": 45,
+      "fpPct": 0,
+      "tnPct": 55
+    },
+    {
+      "family": "intent",
+      "condition": "none",
+      "n": 600,
+      "truePositive": 490,
+      "falsePositive": 0,
+      "trueNegative": 110,
+      "tpPct": 81.67,
+      "fpPct": 0,
+      "tnPct": 18.33
+    },
+    {
+      "family": "intent",
+      "condition": "cosmetic",
+      "n": 600,
+      "truePositive": 490,
+      "falsePositive": 0,
+      "trueNegative": 110,
+      "tpPct": 81.67,
+      "fpPct": 0,
+      "tnPct": 18.33
+    },
+    {
+      "family": "intent",
+      "condition": "attribute",
+      "n": 600,
+      "truePositive": 490,
+      "falsePositive": 0,
+      "trueNegative": 110,
+      "tpPct": 81.67,
+      "fpPct": 0,
+      "tnPct": 18.33
+    },
+    {
+      "family": "intent",
+      "condition": "structural",
+      "n": 600,
+      "truePositive": 490,
+      "falsePositive": 0,
+      "trueNegative": 110,
+      "tpPct": 81.67,
+      "fpPct": 0,
+      "tnPct": 18.33
+    },
+    {
+      "family": "intent",
+      "condition": "layout",
+      "n": 600,
+      "truePositive": 490,
+      "falsePositive": 0,
+      "trueNegative": 110,
+      "tpPct": 81.67,
+      "fpPct": 0,
+      "tnPct": 18.33
+    },
+    {
+      "family": "intent",
+      "condition": "content",
+      "n": 600,
+      "truePositive": 340,
+      "falsePositive": 0,
+      "trueNegative": 260,
+      "tpPct": 56.67,
+      "fpPct": 0,
+      "tnPct": 43.33
+    },
+    {
+      "family": "intent",
+      "condition": "semantic",
+      "n": 600,
+      "truePositive": 110,
+      "falsePositive": 0,
+      "trueNegative": 490,
+      "tpPct": 18.33,
+      "fpPct": 0,
+      "tnPct": 81.67
+    },
+    {
+      "family": "testContract",
+      "condition": "none",
+      "n": 600,
+      "truePositive": 260,
+      "falsePositive": 0,
+      "trueNegative": 340,
+      "tpPct": 43.33,
+      "fpPct": 0,
+      "tnPct": 56.67
+    },
+    {
+      "family": "testContract",
+      "condition": "cosmetic",
+      "n": 600,
+      "truePositive": 260,
+      "falsePositive": 0,
+      "trueNegative": 340,
+      "tpPct": 43.33,
+      "fpPct": 0,
+      "tnPct": 56.67
+    },
+    {
+      "family": "testContract",
+      "condition": "attribute",
+      "n": 600,
+      "truePositive": 0,
+      "falsePositive": 0,
+      "trueNegative": 600,
+      "tpPct": 0,
+      "fpPct": 0,
+      "tnPct": 100
+    },
+    {
+      "family": "testContract",
+      "condition": "structural",
+      "n": 600,
+      "truePositive": 260,
+      "falsePositive": 0,
+      "trueNegative": 340,
+      "tpPct": 43.33,
+      "fpPct": 0,
+      "tnPct": 56.67
+    },
+    {
+      "family": "testContract",
+      "condition": "layout",
+      "n": 600,
+      "truePositive": 260,
+      "falsePositive": 0,
+      "trueNegative": 340,
+      "tpPct": 43.33,
+      "fpPct": 0,
+      "tnPct": 56.67
+    },
+    {
+      "family": "testContract",
+      "condition": "content",
+      "n": 600,
+      "truePositive": 260,
+      "falsePositive": 0,
+      "trueNegative": 340,
+      "tpPct": 43.33,
+      "fpPct": 0,
+      "tnPct": 56.67
+    },
+    {
+      "family": "testContract",
+      "condition": "semantic",
+      "n": 600,
+      "truePositive": 260,
+      "falsePositive": 0,
+      "trueNegative": 340,
+      "tpPct": 43.33,
+      "fpPct": 0,
+      "tnPct": 56.67
+    }
+  ]
+}

@@ -1,0 +1,56 @@
+
+> waypoint@ test /Users/gabrielanokye/Senior Seminar/waypoint
+> corepack pnpm build:packages && vitest run
+
+
+> waypoint@ build:packages /Users/gabrielanokye/Senior Seminar/waypoint
+> corepack pnpm -r --filter "./packages/*" build
+
+Scope: 6 of 10 workspace projects
+packages/shared-types build$ tsc -b
+packages/logger build$ tsc -b
+packages/ui build$ tsc -b
+packages/shared-types build: Done
+packages/ui build: Done
+packages/logger build: Done
+packages/bridge-protocol build$ tsc -b
+packages/db build$ tsc -b
+packages/compiler build$ tsc -b
+packages/db build: Done
+packages/compiler build: Done
+packages/bridge-protocol build: Done
+
+ RUN  v2.1.9 /Users/gabrielanokye/Senior Seminar/waypoint
+
+ ✓ apps/extension/src/hooks/useUndoRedo.test.ts (11 tests) 4ms
+ ✓ apps/runner/src/core/locate.test.ts (24 tests) 8ms
+ ✓ packages/shared-types/src/index.test.ts (24 tests) 9ms
+ ✓ packages/compiler/src/index.test.ts (17 tests) 10ms
+ ✓ apps/runner/src/core/executor.test.ts (15 tests) 8ms
+ ✓ apps/runner/src/core/playwright-launcher.test.ts (9 tests) 14ms
+ ✓ packages/db/src/index.test.ts (9 tests) 72ms
+ ✓ apps/runner/src/core/debug-browser.test.ts (16 tests) 15ms
+ ✓ apps/extension/src/recorder/event-buffer.test.ts (4 tests) 15ms
+ ✓ apps/bridge-host/src/framing.test.ts (7 tests) 5ms
+ ✓ apps/runner/src/core/mutation/mutators.test.ts (25 tests) 477ms
+ ✓ apps/extension/src/attached-target.test.ts (5 tests) 9ms
+ ✓ apps/bridge-host/src/dispatcher.test.ts (5 tests) 55ms
+ ✓ apps/extension/src/scheduler.test.ts (5 tests) 41ms
+ ✓ packages/bridge-protocol/src/index.test.ts (9 tests) 6ms
+ ✓ apps/runner/src/app.test.ts (30 tests) 462ms
+ ✓ apps/extension/src/recorder/selector.test.ts (5 tests) 3ms
+ ✓ apps/extension/src/recordable-url.test.ts (4 tests) 3ms
+ ✓ packages/logger/src/index.test.ts (1 test) 4ms
+ ✓ apps/extension/src/env.test.ts (1 test) 3ms
+ ✓ packages/ui/src/index.test.tsx (1 test) 7ms
+ ✓ apps/extension/src/recorder/redact.test.ts (5 tests) 2ms
+ ✓ apps/runner/src/core/benchmark/runner.test.ts (2 tests) 3ms
+ ✓ apps/runner/src/core/healer.test.ts (19 tests) 12949ms
+   ✓ real Chromium healing integration > records 16 workflows / 120 steps with all four families and complete snapshots 8175ms
+   ✓ real Chromium healing integration > keeps generated table controls, iframe controls and open shadow controls present in all 16×7 states 3443ms
+
+ Test Files  24 passed (24)
+      Tests  253 passed (253)
+   Start at  11:30:45
+   Duration  13.80s (transform 993ms, setup 0ms, collect 3.10s, tests 14.19s, environment 4ms, prepare 2.09s)
+

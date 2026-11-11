@@ -1,0 +1,133 @@
+{
+  "hits": [],
+  "graph": {
+    "run": {
+      "id": "run_de5381a7-1116-4e48-9a28-421da27de48a",
+      "workflowId": "report4-manual",
+      "workflowVersionId": "report4-manual_v1",
+      "workflowVersion": 1,
+      "status": "failed",
+      "triggerSource": "manual",
+      "startedAt": "2026-11-10T23:49:19.838Z",
+      "finishedAt": "2026-11-10T23:49:19.872Z",
+      "errorCode": "needs_manual_intervention",
+      "errorMessage": "needs_manual_intervention: confirm one of the top ranked candidates",
+      "createdAt": "2026-11-10T23:49:19.838Z",
+      "updatedAt": "2026-11-10T23:49:19.872Z",
+      "metadata": {
+        "headless": false,
+        "slowMo": 0,
+        "contextIsolation": "attached",
+        "browserEngine": "cdp",
+        "researchEligible": false,
+        "cdpEndpoint": "http://127.0.0.1:9224",
+        "selectedTabId": 1379044593,
+        "selectedWindowId": 1379044590,
+        "selectedUrl": "http://127.0.0.1:62569/ambiguous.html?mutation=structural&seed=demo",
+        "selectedDocumentId": "292ADB82D55E7AF30B290C892383B4B2",
+        "selectedTargetId": "0AB206075E88054E698E27147AC4EBCF",
+        "healingEnabled": true,
+        "useSelectedPage": true,
+        "recordedStartUrl": "http://127.0.0.1:62569/ambiguous.html",
+        "replayStartUrl": "http://127.0.0.1:62569/ambiguous.html?mutation=structural&seed=demo"
+      }
+    },
+    "steps": [
+      {
+        "healingAttempted": false,
+        "healingOutcome": null,
+        "healedScore": null,
+        "ambiguityMargin": null,
+        "regeneratedLocator": null,
+        "topCandidates": [],
+        "healingLatencyMs": null,
+        "id": "rsr_60c7bd18-6b02-4357-9a24-54e780ac6d5c",
+        "runId": "run_de5381a7-1116-4e48-9a28-421da27de48a",
+        "stepId": "step_1",
+        "stepType": "goto",
+        "status": "succeeded",
+        "attemptCount": 1,
+        "startedAt": "2026-11-10T23:49:19.838Z",
+        "finishedAt": "2026-11-10T23:49:19.838Z",
+        "durationMs": 0,
+        "artifactIds": [],
+        "debug": {
+          "sourceEventIds": [],
+          "notes": [],
+          "tags": [],
+          "extra": {}
+        }
+      },
+      {
+        "healingAttempted": true,
+        "healingOutcome": "needs_manual_intervention",
+        "healedScore": 0.9583333333333334,
+        "ambiguityMargin": 0.01539999999999997,
+        "regeneratedLocator": null,
+        "topCandidates": [
+          {
+            "index": 0,
+            "score": 0.9583333333333334,
+            "features": {
+              "semantic": 1,
+              "text": 1,
+              "attributes": 1,
+              "structural": 0.5833333333333333,
+              "position": 1
+            },
+            "tagName": "button",
+            "accessibleName": "Delete"
+          },
+          {
+            "index": 1,
+            "score": 0.9429333333333334,
+            "features": {
+              "semantic": 1,
+              "text": 1,
+              "attributes": 1,
+              "structural": 0.5833333333333333,
+              "position": 0.846
+            },
+            "tagName": "button",
+            "accessibleName": "Delete"
+          },
+          {
+            "index": 2,
+            "score": 0.9275333333333334,
+            "features": {
+              "semantic": 1,
+              "text": 1,
+              "attributes": 1,
+              "structural": 0.5833333333333333,
+              "position": 0.692
+            },
+            "tagName": "button",
+            "accessibleName": "Delete"
+          }
+        ],
+        "healingLatencyMs": 20.480999999999767,
+        "id": "rsr_a8cffd35-710d-4ad9-b35e-d81165e56bc4",
+        "runId": "run_de5381a7-1116-4e48-9a28-421da27de48a",
+        "stepId": "step_3",
+        "stepType": "waitFor",
+        "status": "needs_manual_intervention",
+        "attemptCount": 1,
+        "startedAt": "2026-11-10T23:49:19.838Z",
+        "finishedAt": "2026-11-10T23:49:19.870Z",
+        "durationMs": 32,
+        "truthClassification": "true_negative",
+        "expectedTruthId": "delete-alpha",
+        "errorCode": "needs_manual_intervention",
+        "errorMessage": "needs_manual_intervention: confirm one of the top ranked candidates",
+        "artifactIds": [],
+        "debug": {
+          "sourceEventIds": [],
+          "notes": [],
+          "tags": [],
+          "extra": {}
+        }
+      }
+    ],
+    "artifacts": []
+  }
+}

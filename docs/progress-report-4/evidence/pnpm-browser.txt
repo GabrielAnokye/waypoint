@@ -1,0 +1,24 @@
+[WebServer] (node:51873) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 15 tests using 1 worker
+
+(node:51874) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 tests/browser/ambiguous-replay.spec.ts:258:1 › recorded Alpha, Beta and Gamma reach three distinct actual targets (4.2s)
+  ✓   2 tests/browser/ambiguous-replay.spec.ts:285:1 › removing distinguishing DOM selectors safely abstains even with truth IDs present (3.0s)
+  ✓   3 tests/browser/ambiguous-replay.spec.ts:320:1 › a unique but wrong fallback records the wrong actual identity as false_positive (2.8s)
+  ✓   4 tests/browser/ambiguous-replay.spec.ts:339:1 › benchmark intent cannot borrow structural fallbacks; structural succeeds independently (3.7s)
+  ✓   5 tests/browser/ambiguous-replay.spec.ts:392:1 › a locator that becomes ambiguous after resolution never clicks its first match (2.8s)
+  ✓   6 tests/browser/ambiguous-replay.spec.ts:420:1 › identical URLs select the exact second tab and preserve every existing page (3.3s)
+  ✓   7 tests/browser/ambiguous-replay.spec.ts:456:1 › a different starting URL navigates the selected existing tab once (3.5s)
+  ✓   8 tests/browser/ambiguous-replay.spec.ts:474:1 › explicit refresh reloads the selected page once and preserves stored authentication state (3.1s)
+  ✓   9 tests/browser/ambiguous-replay.spec.ts:497:1 › missing or stale tab identity returns an actionable error with no replacement page (3.0s)
+  ✓  10 tests/browser/ambiguous-replay.spec.ts:516:1 › Run clean executes in isolation and leaves the selected browser untouched (3.6s)
+  ✓  11 tests/browser/ambiguous-replay.spec.ts:551:1 › unavailable CDP refuses attachment and leaves the existing browser untouched (2.9s)
+  ✓  12 tests/browser/ambiguous-replay.spec.ts:565:1 › only an explicit recorded newTab step creates a page and leaves existing tabs open (3.3s)
+  ✓  13 tests/browser/ambiguous-replay.spec.ts:588:1 › the real side panel Run in open browser button replays in its active webpage (3.3s)
+  ✓  14 tests/browser/ambiguous-replay.spec.ts:718:1 › selected-page replay keeps the mutation URL for an existing file recording (3.4s)
+  ✓  15 tests/browser/ambiguous-replay.spec.ts:789:1 › self-healing on the selected structural mutation safely halts with ranked Delete candidates (3.4s)
+
+  15 passed (50.5s)

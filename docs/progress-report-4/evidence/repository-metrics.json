@@ -1,0 +1,13 @@
+{
+  "head": "cace5001d47b3090cee1f0c10f72fbd0b0023349",
+  "commits": 39,
+  "tracked_files": 173,
+  "ts_tsx_files": 91,
+  "source_files": 61,
+  "source_lines": 13904,
+  "application_source_lines": 13805,
+  "test_files": 30,
+  "test_lines": 5917,
+  "vitest_files": 25,
+  "playwright_specs": 5
+}

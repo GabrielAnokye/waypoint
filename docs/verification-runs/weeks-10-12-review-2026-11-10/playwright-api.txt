@@ -1,0 +1,16 @@
+[WebServer] (node:34540) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 7 tests using 1 worker
+
+(node:34543) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 tests/e2e/run-failure.spec.ts:3:1 › run with bad workflow id returns 404 (41ms)
+  ✓  2 tests/e2e/run-failure.spec.ts:8:1 › cancel unknown run returns 404 (4ms)
+  ✓  3 tests/e2e/run-failure.spec.ts:13:1 › GET /runs/:id for unknown run returns 404 (4ms)
+  ✓  4 tests/e2e/run-new-tab.spec.ts:43:1 › multi-tab workflow compiles to newTab + goto + click and runs successfully (122ms)
+  ✓  5 tests/e2e/run-success.spec.ts:29:1 › POST /recordings compiles and persists, then run succeeds (116ms)
+  ✓  6 tests/e2e/run-success.spec.ts:74:1 › GET /runs lists runs for a workflow (321ms)
+  ✓  7 tests/e2e/runner-health.spec.ts:3:1 › runner health endpoint responds with ok status (5ms)
+
+  7 passed (1.6s)

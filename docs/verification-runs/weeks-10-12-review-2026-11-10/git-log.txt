@@ -1,0 +1,4 @@
+9febe73 Complete six mutation classes and audit the 16-state corpus
+b4aaa9a Add capture snapshots, weighted self-healing, and reproducible benchmark matrix
+0ab0002 Recover incompatible targets and preserve candidate and slot identity
+86d9c7b Publish verified N=5 benchmark data and Progress Report 4 handoff

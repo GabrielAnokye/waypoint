@@ -1,0 +1,4 @@
+
+> waypoint@ typecheck /Users/gabrielanokye/Senior Seminar/waypoint
+> tsc -b --pretty false
+

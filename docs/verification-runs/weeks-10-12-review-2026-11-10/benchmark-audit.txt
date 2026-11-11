@@ -1,0 +1,1 @@
+Verified 33600 main observations, 840 threshold trials, 56 summary cells, 16 workflows, 120 capture snapshots, gate constraints, grading, latency statistics, and all file hashes.

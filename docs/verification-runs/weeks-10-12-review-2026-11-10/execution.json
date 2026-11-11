@@ -1,0 +1,82 @@
+[
+  {
+    "command": "pnpm test",
+    "log": "pnpm-test.txt",
+    "exit_code": 0,
+    "started_at": "2026-11-10T17:30:42.849075+00:00",
+    "finished_at": "2026-11-10T17:30:58.849667+00:00",
+    "seconds": 16.001
+  },
+  {
+    "command": "pnpm typecheck",
+    "log": "pnpm-typecheck.txt",
+    "exit_code": 0,
+    "started_at": "2026-11-10T17:30:58.850251+00:00",
+    "finished_at": "2026-11-10T17:30:59.336856+00:00",
+    "seconds": 0.487
+  },
+  {
+    "command": "pnpm lint",
+    "log": "pnpm-lint.txt",
+    "exit_code": 0,
+    "started_at": "2026-11-10T17:32:27.971033+00:00",
+    "finished_at": "2026-11-10T17:32:30.392339+00:00",
+    "seconds": 2.421
+  },
+  {
+    "command": "pnpm build",
+    "log": "pnpm-build.txt",
+    "exit_code": 0,
+    "started_at": "2026-11-10T17:32:30.392868+00:00",
+    "finished_at": "2026-11-10T17:32:32.354845+00:00",
+    "seconds": 1.962
+  },
+  {
+    "command": "pnpm exec playwright test --config docs/verification-runs/weeks-10-12-review-2026-11-10/api-smoke.config.mjs",
+    "log": "playwright-api.txt",
+    "exit_code": 0,
+    "started_at": "2026-11-10T17:32:32.355346+00:00",
+    "finished_at": "2026-11-10T17:32:34.736459+00:00",
+    "seconds": 2.381
+  },
+  {
+    "command": "pnpm exec playwright test --config playwright.browser.config.ts --headed",
+    "log": "playwright-headed.txt",
+    "exit_code": 0,
+    "started_at": "2026-11-10T17:32:34.736947+00:00",
+    "finished_at": "2026-11-10T17:33:24.840220+00:00",
+    "seconds": 50.105
+  },
+  {
+    "command": "pnpm benchmark:run --output-dir docs/verification-runs/weeks-10-12-review-2026-11-10/benchmark-results",
+    "log": "pnpm-benchmark-run-attempt1-timeout.txt",
+    "exit_code": 1,
+    "started_at": "2026-11-10T17:33:24.844008+00:00",
+    "finished_at": "2026-11-10T17:51:16.675315+00:00",
+    "seconds": 62.615
+  },
+  {
+    "command": "pnpm lint",
+    "log": "pnpm-lint.txt",
+    "exit_code": 0,
+    "started_at": "2026-11-10T18:43:06.951368+00:00",
+    "finished_at": "2026-11-10T18:43:09.330222+00:00",
+    "seconds": 2.379
+  },
+  {
+    "command": "caffeinate -i pnpm benchmark:run --output-dir docs/verification-runs/weeks-10-12-review-2026-11-10/benchmark-results",
+    "log": "pnpm-benchmark-run.txt",
+    "exit_code": 0,
+    "started_at": "2026-11-10T18:43:09.330747+00:00",
+    "finished_at": "2026-11-10T18:55:32.426751+00:00",
+    "seconds": 743.024
+  },
+  {
+    "command": "node scripts/verify-benchmark.mjs docs/verification-runs/weeks-10-12-review-2026-11-10/benchmark-results",
+    "log": "benchmark-audit.txt",
+    "exit_code": 0,
+    "started_at": "2026-11-10T18:55:32.427528+00:00",
+    "finished_at": "2026-11-10T18:55:32.785389+00:00",
+    "seconds": 0.358
+  }
+]

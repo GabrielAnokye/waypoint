@@ -1,0 +1,49 @@
+
+> waypoint@ benchmark:run /Users/gabrielanokye/Senior Seminar/waypoint
+> corepack pnpm build:packages && tsx apps/runner/src/core/benchmark/runner.ts "--output-dir" "docs/verification-runs/weeks-10-12-review-2026-11-10/benchmark-results"
+
+
+> waypoint@ build:packages /Users/gabrielanokye/Senior Seminar/waypoint
+> corepack pnpm -r --filter "./packages/*" build
+
+Scope: 6 of 10 workspace projects
+packages/logger build$ tsc -b
+packages/shared-types build$ tsc -b
+packages/ui build$ tsc -b
+packages/ui build: Done
+packages/logger build: Done
+packages/shared-types build: Done
+packages/db build$ tsc -b
+packages/compiler build$ tsc -b
+packages/bridge-protocol build$ tsc -b
+packages/compiler build: Done
+packages/bridge-protocol build: Done
+packages/db build: Done
+Capturing 16 workflows / 120 steps at 1280×1000; 5 repetitions, 4 workers.
+Capture verified. Starting baseline and healing passes.
+Pass A: 112/2240 workflow cells; 840 step evaluations
+Pass A: 224/2240 workflow cells; 1680 step evaluations
+Pass A: 336/2240 workflow cells; 2520 step evaluations
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+page.goto: Timeout 30000ms exceeded.
+Call log:
+[2m  - navigating to "http://127.0.0.1:64902/ambiguous.html?variant=unlabeled&seed=waypoint-repetition-1&mutation=content", waiting until "load"[22m
+
+    at preparePage (/Users/gabrielanokye/Senior Seminar/waypoint/apps/runner/src/core/benchmark/workflows.ts:130:14)
+    at evaluateWorkflow (/Users/gabrielanokye/Senior Seminar/waypoint/apps/runner/src/core/benchmark/runner.ts:543:13)
+    at async <anonymous> (/Users/gabrielanokye/Senior Seminar/waypoint/apps/runner/src/core/benchmark/runner.ts:204:30)
+    at async <anonymous> (/Users/gabrielanokye/Senior Seminar/waypoint/apps/runner/src/core/benchmark/runner.ts:498:9)
+    at async pool (/Users/gabrielanokye/Senior Seminar/waypoint/apps/runner/src/core/benchmark/runner.ts:494:3)
+    at async runBenchmark (/Users/gabrielanokye/Senior Seminar/waypoint/apps/runner/src/core/benchmark/runner.ts:221:7)
+    at async <anonymous> (/Users/gabrielanokye/Senior Seminar/waypoint/apps/runner/src/core/benchmark/runner.ts:598:3) {
+  log: [
+    '  - navigating to "http://127.0.0.1:64902/ambiguous.html?variant=unlabeled&seed=waypoint-repetition-1&mutation=content", waiting until "load"'
+  ],
+  name: 'TimeoutError'
+}
+
+Node.js v25.9.0
+ ELIFECYCLE  Command failed with exit code 1.

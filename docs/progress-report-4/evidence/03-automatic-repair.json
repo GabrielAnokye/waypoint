@@ -1,0 +1,219 @@
+{
+  "hits": [
+    {
+      "truthId": "login-submit",
+      "trusted": true
+    }
+  ],
+  "graph": {
+    "run": {
+      "id": "run_0ab6ca7d-6a17-4ed5-82bd-faf64b25b44c",
+      "workflowId": "report4-auto",
+      "workflowVersionId": "report4-auto_v1",
+      "workflowVersion": 1,
+      "status": "succeeded",
+      "triggerSource": "manual",
+      "startedAt": "2026-11-10T23:49:19.141Z",
+      "finishedAt": "2026-11-10T23:49:19.302Z",
+      "createdAt": "2026-11-10T23:49:19.141Z",
+      "updatedAt": "2026-11-10T23:49:19.302Z",
+      "metadata": {
+        "headless": false,
+        "slowMo": 0,
+        "contextIsolation": "attached",
+        "browserEngine": "cdp",
+        "researchEligible": false,
+        "cdpEndpoint": "http://127.0.0.1:9224",
+        "selectedTabId": 1379044593,
+        "selectedWindowId": 1379044590,
+        "selectedUrl": "http://127.0.0.1:62569/forms.html?mutation=attribute&seed=demo",
+        "selectedDocumentId": "5380045D2690B5340454ECBDADCA12DC",
+        "selectedTargetId": "0AB206075E88054E698E27147AC4EBCF",
+        "healingEnabled": true,
+        "useSelectedPage": true,
+        "recordedStartUrl": "http://127.0.0.1:62569/forms.html",
+        "replayStartUrl": "http://127.0.0.1:62569/forms.html?mutation=attribute&seed=demo"
+      }
+    },
+    "steps": [
+      {
+        "healingAttempted": false,
+        "healingOutcome": null,
+        "healedScore": null,
+        "ambiguityMargin": null,
+        "regeneratedLocator": null,
+        "topCandidates": [],
+        "healingLatencyMs": null,
+        "id": "rsr_3ba6aaee-9131-408e-b592-2d4149f89869",
+        "runId": "run_0ab6ca7d-6a17-4ed5-82bd-faf64b25b44c",
+        "stepId": "step_1",
+        "stepType": "goto",
+        "status": "succeeded",
+        "attemptCount": 1,
+        "startedAt": "2026-11-10T23:49:19.141Z",
+        "finishedAt": "2026-11-10T23:49:19.141Z",
+        "durationMs": 0,
+        "artifactIds": [],
+        "debug": {
+          "sourceEventIds": [],
+          "notes": [],
+          "tags": [],
+          "extra": {}
+        }
+      },
+      {
+        "healingAttempted": true,
+        "healingOutcome": "autonomous_repair",
+        "healedScore": 1,
+        "ambiguityMargin": 0.56325,
+        "regeneratedLocator": {
+          "kind": "css",
+          "selector": "[data-waypoint-healed=\"193f9c54-b405-46b4-ad27-d7a331757608\"]"
+        },
+        "topCandidates": [
+          {
+            "index": 3,
+            "score": 1,
+            "features": {
+              "semantic": 1,
+              "text": 1,
+              "attributes": 1,
+              "structural": 1,
+              "position": 1
+            },
+            "tagName": "button",
+            "accessibleName": "Sign in"
+          },
+          {
+            "index": 12,
+            "score": 0.43675,
+            "features": {
+              "semantic": 0.43,
+              "text": 0.125,
+              "attributes": 1,
+              "structural": 0.55,
+              "position": 0
+            },
+            "tagName": "button",
+            "accessibleName": "Register"
+          },
+          {
+            "index": 4,
+            "score": 0.1358728816493996,
+            "features": {
+              "semantic": 0,
+              "text": 0.125,
+              "attributes": 0,
+              "structural": 0.6,
+              "position": 0.4462288164939958
+            },
+            "tagName": "input",
+            "accessibleName": "Full Name"
+          }
+        ],
+        "healingLatencyMs": 87.26674999999977,
+        "id": "rsr_b6a3e89e-f3c9-4a2b-8392-66c5b28511aa",
+        "runId": "run_0ab6ca7d-6a17-4ed5-82bd-faf64b25b44c",
+        "stepId": "step_3",
+        "stepType": "waitFor",
+        "status": "succeeded",
+        "attemptCount": 1,
+        "startedAt": "2026-11-10T23:49:19.141Z",
+        "finishedAt": "2026-11-10T23:49:19.242Z",
+        "durationMs": 101,
+        "resolvedLocator": {
+          "kind": "css",
+          "selector": "[data-waypoint-healed=\"193f9c54-b405-46b4-ad27-d7a331757608\"]"
+        },
+        "usedFallback": true,
+        "truthClassification": "true_positive",
+        "resolvedTruthId": "login-submit",
+        "expectedTruthId": "login-submit",
+        "artifactIds": [],
+        "debug": {
+          "sourceEventIds": [],
+          "notes": [],
+          "tags": [],
+          "extra": {}
+        }
+      },
+      {
+        "healingAttempted": true,
+        "healingOutcome": "autonomous_repair",
+        "healedScore": 1,
+        "ambiguityMargin": 0.56325,
+        "regeneratedLocator": {
+          "kind": "css",
+          "selector": "[data-waypoint-healed=\"f7e027ae-c328-4c7c-8471-92448a6a17ac\"]"
+        },
+        "topCandidates": [
+          {
+            "index": 3,
+            "score": 1,
+            "features": {
+              "semantic": 1,
+              "text": 1,
+              "attributes": 1,
+              "structural": 1,
+              "position": 1
+            },
+            "tagName": "button",
+            "accessibleName": "Sign in"
+          },
+          {
+            "index": 12,
+            "score": 0.43675,
+            "features": {
+              "semantic": 0.43,
+              "text": 0.125,
+              "attributes": 1,
+              "structural": 0.55,
+              "position": 0
+            },
+            "tagName": "button",
+            "accessibleName": "Register"
+          },
+          {
+            "index": 4,
+            "score": 0.1358728816493996,
+            "features": {
+              "semantic": 0,
+              "text": 0.125,
+              "attributes": 0,
+              "structural": 0.6,
+              "position": 0.4462288164939958
+            },
+            "tagName": "input",
+            "accessibleName": "Full Name"
+          }
+        ],
+        "healingLatencyMs": 14.334708999999748,
+        "id": "rsr_f96fdd16-746c-4a22-8d19-e7dd19c85cf8",
+        "runId": "run_0ab6ca7d-6a17-4ed5-82bd-faf64b25b44c",
+        "stepId": "step_2",
+        "stepType": "click",
+        "status": "succeeded",
+        "attemptCount": 1,
+        "startedAt": "2026-11-10T23:49:19.242Z",
+        "finishedAt": "2026-11-10T23:49:19.301Z",
+        "durationMs": 59,
+        "resolvedLocator": {
+          "kind": "css",
+          "selector": "[data-waypoint-healed=\"f7e027ae-c328-4c7c-8471-92448a6a17ac\"]"
+        },
+        "usedFallback": true,
+        "truthClassification": "true_positive",
+        "resolvedTruthId": "login-submit",
+        "expectedTruthId": "login-submit",
+        "artifactIds": [],
+        "debug": {
+          "sourceEventIds": [],
+          "notes": [],
+          "tags": [],
+          "extra": {}
+        }
+      }
+    ],
+    "artifacts": []
+  }
+}
